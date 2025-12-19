@@ -5,6 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Bonaparte - Empresa</title>
     <link rel="stylesheet" href="/styles.css" />
+    <style>
+      .grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+      .muted { color: #94a3b8; font-size: 13px; }
+      .stack { display: grid; gap: 8px; }
+      .badge-soft { display: inline-block; padding: 4px 10px; border-radius: 999px; background: #1e293b; color: #e2e8f0; font-size: 12px; }
+      .list-simple { display: grid; gap: 10px; }
+    </style>
   </head>
   <body>
     <header>
@@ -14,6 +21,8 @@
           <a href="/">Público</a>
           <a href="/empresa.html">Empresa</a>
           <a href="/consultora.html">Consultora</a>
+          <a href="/login.html">Login</a>
+          <button id="btnLogout" class="secondary" style="padding:6px 12px;">Logout</button>
           <span class="badge">UI: 8080</span>
         </div>
       </div>
@@ -21,114 +30,142 @@
 
     <main class="container">
       <div class="hero">
-        <h1>Panel de Empresa</h1>
-        <p>Administra tu empresa, acepta el contrato digital, gestiona vacantes y consulta facturas y estadísticas.</p>
+        <h1>Área de Empresa</h1>
+        <p>Todo en un lugar: contrato de peaje, datos de la empresa, vacantes y facturas. Sin copiar IDs.</p>
+        <div class="inline" style="gap:8px; flex-wrap:wrap; margin-top:10px;">
+          <span class="badge">Rol empresa</span>
+          <span class="badge">Contrato digital</span>
+          <span class="badge">CRUD vacantes</span>
+          <span class="badge">Facturas HTML</span>
+        </div>
       </div>
+
       <section class="card">
-        <h2>Empresa: acceso</h2>
-        <div class="row">
+        <h2>Estado rápido</h2>
+        <div class="grid">
           <div>
-            <h3>Login</h3>
-            <label>Username</label>
-            <input id="loginUser" placeholder="empresa_demo" />
-            <label>Password</label>
-            <input id="loginPass" type="password" placeholder="demo123" />
-            <div class="inline" style="margin-top:10px;">
-              <button id="btnLogin" class="fit">Entrar</button>
-              <button id="btnLogout" class="secondary fit">Salir</button>
-            </div>
-            <div class="small muted" style="margin-top:10px;">Token guardado en LocalStorage (solo demo).</div>
+            <div class="small muted">Empresa</div>
+            <div id="companyName" class="item-title">(cargando...)</div>
+            <div id="companyMeta" class="small muted"></div>
           </div>
-
           <div>
-            <h3>Registro (Empresa + Compañía)</h3>
-            <label>Username</label>
-            <input id="regUser" placeholder="empresa_nueva" />
-            <label>Password</label>
-            <input id="regPass" type="password" placeholder="demo123" />
+            <div class="small muted">Contrato</div>
+            <div id="contractStatus" class="item-title">(cargando...)</div>
+            <div id="contractMeta" class="small muted"></div>
+          </div>
+          <div>
+            <div class="small muted">Sesión</div>
+            <div id="sessionMeta" class="item-title">(cargando...)</div>
+            <div id="sessionRole" class="small muted"></div>
+          </div>
+        </div>
+      </section>
 
-            <label>Nombre empresa</label>
-            <input id="regName" placeholder="Empresa Demo" />
-            <label>Tipo</label>
-            <select id="regType">
-              <option value="private">Privada</option>
-              <option value="public">Pública</option>
-            </select>
-            <label>Email</label>
-            <input id="regEmail" placeholder="demo@empresa.com" />
+      <section class="card">
+        <h2>Contrato de peaje</h2>
+        <p class="muted">Lee y acepta para habilitar tu área. Es breve y muestra el costo por interacción.</p>
+        <div id="contractBox" class="stack"></div>
+        <div class="inline" style="margin-top:10px; gap:8px; flex-wrap:wrap;">
+          <button id="btnAcceptContract">Aceptar contrato</button>
+          <button id="btnReloadContract" class="secondary">Refrescar</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Mis datos</h2>
+        <p class="muted">Edita lo esencial; se usa en facturación y contrato.</p>
+        <div class="grid">
+          <div class="stack">
+            <label>Nombre comercial</label>
+            <input id="fCommercialName" placeholder="Comercial" />
+            <label>Razón social</label>
+            <input id="fLegalName" placeholder="Legal" />
+            <label>RUC</label>
+            <input id="fRuc" placeholder="000-000-000" />
+            <label>DV</label>
+            <input id="fDv" placeholder="00" />
+            <label>NIT</label>
+            <input id="fNit" placeholder="NIT" />
+          </div>
+          <div class="stack">
+            <label>Correo</label>
+            <input id="fEmail" placeholder="contacto@empresa.com" />
             <label>Teléfono</label>
-            <input id="regPhone" placeholder="0000-0000" />
+            <input id="fPhone" placeholder="0000-0000" />
             <label>Dirección</label>
-            <input id="regAddress" placeholder="Chiriquí" />
-
-            <button id="btnRegister" style="margin-top:10px;">Crear cuenta</button>
+            <input id="fAddress" placeholder="Dirección" />
+            <label>Provincia</label>
+            <input id="fProvince" placeholder="Provincia" />
+            <label>Distrito / Corregimiento</label>
+            <input id="fDistrict" placeholder="Distrito" />
+            <input id="fCorregimiento" placeholder="Corregimiento" />
           </div>
         </div>
-
-        <hr />
-        <div class="small muted">Estado actual:</div>
-        <pre id="authOut">(sin sesión)</pre>
-      </section>
-
-      <section class="card">
-        <h2>Contrato digital</h2>
-        <div class="small muted">Debe ser aceptado por la empresa. (Prototipo)</div>
-        <div class="inline" style="margin-top:10px;">
-          <button id="btnLoadContract" class="fit">Ver contrato</button>
-          <button id="btnAcceptContract" class="secondary fit">Aceptar contrato</button>
+        <div class="inline" style="margin-top:12px; gap:8px; flex-wrap:wrap;">
+          <button id="btnSaveCompany">Guardar cambios</button>
+          <span class="muted">Se guarda al instante y actualiza contrato/facturas.</span>
         </div>
-        <pre id="contractOut">(sin datos)</pre>
       </section>
 
       <section class="card">
-        <h2>Mis estadísticas</h2>
-        <div class="small muted">Accesos a mis vacantes (ventana móvil de 30 días por defecto).</div>
-        <div class="inline" style="margin-top:10px;">
-          <button id="btnLoadStats" class="fit">Cargar stats</button>
-          <button id="btnClearStats" class="secondary fit">Limpiar</button>
-        </div>
-        <pre id="statsOut">(sin datos)</pre>
-      </section>
-
-      <section class="card">
-        <h2>Vacantes (CRUD)</h2>
-        <div class="row">
-          <div>
-            <h3>Crear vacante</h3>
+        <h2>Vacantes</h2>
+        <p class="muted">Crea, abre/cierra y elimina sin pegar IDs.</p>
+        <div class="grid">
+          <div class="stack">
             <label>Título</label>
-            <input id="vacTitle" placeholder="Vacante Demo" />
+            <input id="vacTitle" placeholder="Analista" />
             <label>Descripción</label>
-            <textarea id="vacDesc" placeholder="Descripción..."></textarea>
+            <textarea id="vacDesc" placeholder="Resumen breve"></textarea>
             <label>Ubicación</label>
-            <input id="vacLoc" placeholder="Chiriquí" />
+            <input id="vacLoc" placeholder="Panamá" />
             <label>Salario</label>
             <input id="vacSalary" placeholder="N/A" />
-            <label>Estado</label>
-            <select id="vacStatus">
-              <option value="open">open</option>
-              <option value="closed">closed</option>
-            </select>
-            <button id="btnCreateVac" style="margin-top:10px;">Crear</button>
+            <button id="btnCreateVac" style="margin-top:8px;">Crear vacante</button>
           </div>
           <div>
-            <h3>Mis vacantes</h3>
-            <div class="inline" style="margin-top:10px;">
-              <button id="btnLoadVac" class="fit">Cargar</button>
-              <button id="btnClearVac" class="secondary fit">Limpiar</button>
+            <div class="inline" style="margin-bottom:10px; gap:8px; flex-wrap:wrap;">
+              <button id="btnLoadVac" class="secondary">Refrescar</button>
+              <span class="muted">Al abrir/cerrar solo cambia el estado.</span>
             </div>
-            <div id="vacList" class="list" style="margin-top:12px;"></div>
+            <div id="vacPagerMine" class="inline pager" style="margin-bottom:10px; display:none;">
+              <button id="btnVacMinePrev" class="secondary fit">Anterior</button>
+              <div id="vacPagerMineMeta" class="pager-meta"></div>
+              <button id="btnVacMineNext" class="secondary fit">Siguiente</button>
+            </div>
+            <div id="vacList" class="list-simple"></div>
           </div>
         </div>
       </section>
 
       <section class="card">
-        <h2>Mis facturas</h2>
-        <div class="small muted">Listado solo lectura (filtrado por mi empresa).</div>
-        <div class="inline" style="margin-top:10px;">
-          <button id="btnLoadInvoices" class="fit">Cargar facturas</button>
-          <button id="btnClearInvoices" class="secondary fit">Limpiar</button>
+        <h2>Estadísticas (últimos 30 días)</h2>
+        <p class="muted">Conteo de interacciones (acceso/detalle/chatbot) y estimación de peaje para base de facturación.</p>
+        <div class="grid">
+          <div class="stack">
+            <label>Vacante (opcional)</label>
+            <select id="statsVacancySelect">
+              <option value="">Todas mis vacantes</option>
+            </select>
+            <div class="inline" style="margin-top:10px; gap:8px; flex-wrap:wrap;">
+              <button id="btnLoadStats">Ver estadísticas</button>
+              <button id="btnClearStats" class="secondary">Limpiar</button>
+            </div>
+          </div>
+          <div>
+            <div id="statsBox" class="list-simple"></div>
+          </div>
         </div>
-        <div id="invoiceList" class="list" style="margin-top:12px;"></div>
+      </section>
+
+      <section class="card">
+        <h2>Facturación</h2>
+        <p class="muted">Tus facturas de peaje. Abre en un clic y guarda en PDF desde el navegador.</p>
+        <div class="inline" style="margin-bottom:10px; gap:8px; flex-wrap:wrap;">
+          <button id="btnLoadInvoices">Cargar facturas</button>
+          <button id="btnGenerateInvoice" class="secondary">Generar factura (30 días)</button>
+          <button id="btnClearInvoices" class="secondary">Limpiar</button>
+        </div>
+        <div id="invoiceList" class="list-simple"></div>
       </section>
     </main>
 
@@ -139,160 +176,181 @@
           alert('No cargó /app.js (JavaScript). Abre la web desde http://localhost:8080/ y revisa la consola (F12).');
           throw new Error('Bonaparte frontend: window.Bonaparte not found');
         }
-
         const B = window.Bonaparte;
-        const TOKEN_KEY = 'bonaparte_empresa_token';
+        const TOKEN_KEY = 'bonaparte_login_token';
+
+        let state = { company: null, contract: null };
 
         function token() {
           return B.getToken(TOKEN_KEY);
         }
 
-        function ensureFilled(id, label) {
-          const value = (B.el(id).value || '').trim();
-          if (!value) throw new Error(`Falta ${label}`);
-          return value;
-        }
-
-        function companyIdFromToken() {
+        function ensureAuth() {
           const t = token();
-          if (!t) return null;
-          const payload = B.decodeJwt(t);
-          return payload && payload.companyId ? payload.companyId : null;
+          if (!t) {
+            const next = encodeURIComponent(location.pathname + location.search);
+            location.href = `/login.html?next=${next}`;
+            return null;
+          }
+          const payload = B.decodeJwt(t) || {};
+          if (payload.role !== 'empresa') {
+            alert('Necesitas un usuario con rol empresa.');
+            location.href = '/login.html';
+            return null;
+          }
+          const badge = document.createElement('span');
+          badge.className = 'badge';
+          badge.textContent = `${payload.username || 'usuario'} · ${payload.role}`;
+          document.querySelector('.nav').appendChild(badge);
+          B.el('sessionMeta').textContent = payload.username || 'usuario';
+          B.el('sessionRole').textContent = `Rol: ${payload.role}`;
+          return payload;
         }
 
-        function refreshAuthOut(extra) {
-          const payload = token() ? B.decodeJwt(token()) : null;
-          B.showJson(B.el('authOut'), {
-            loggedIn: Boolean(token()),
-            payload,
-            ...extra,
-          });
+        function fillCompanyForm(c) {
+          B.el('fCommercialName').value = c.commercialName || '';
+          B.el('fLegalName').value = c.legalName || '';
+          B.el('fRuc').value = c.ruc || '';
+          B.el('fDv').value = c.dv || '';
+          B.el('fNit').value = c.nit || '';
+          B.el('fEmail').value = c.email || '';
+          B.el('fPhone').value = c.phone || '';
+          B.el('fAddress').value = c.address || '';
+          B.el('fProvince').value = c.province || '';
+          B.el('fDistrict').value = c.district || '';
+          B.el('fCorregimiento').value = c.corregimiento || '';
         }
 
-        function updateContractUi(contract) {
+        function renderContractBox(contract) {
+          const box = B.el('contractBox');
           if (!contract) {
-            B.el('contractOut').textContent = '(sin datos)';
+            box.innerHTML = '<div class="small muted">Sin contrato cargado.</div>';
+            B.el('contractStatus').textContent = 'Contrato pendiente';
+            B.el('contractMeta').textContent = '';
             B.el('btnAcceptContract').disabled = false;
             return;
           }
-          B.showJson(B.el('contractOut'), contract);
           const accepted = Boolean(contract.accepted);
+          B.el('contractStatus').textContent = accepted ? 'Contrato aceptado' : 'Contrato pendiente';
+          B.el('contractMeta').textContent = accepted && contract.acceptedAt ? `Aceptado: ${contract.acceptedAt}` : 'Debes aceptar para seguir';
           B.el('btnAcceptContract').disabled = accepted;
-          B.el('btnAcceptContract').textContent = accepted ? 'Contrato aceptado' : 'Aceptar contrato';
+
+          box.innerHTML = '';
+          const list = document.createElement('div');
+          list.className = 'list-simple';
+          list.innerHTML = `
+            <div><strong>Peaje:</strong> ${contract.tollDescription || 'N/A'}</div>
+            <div><strong>Interacciones:</strong> ${contract.interactionDefinition || 'Acceso, detalle, chatbot'}</div>
+            <div><strong>Facturación:</strong> ${contract.billingTerms || 'Mensual, ITBMS 7%, HTML emulado DGI'}</div>
+            <div class="small muted">Versión: ${contract.contractVersion || 'v1-panama'}</div>
+          `;
+          box.appendChild(list);
         }
 
-        async function login() {
-            const data = await B.apiFetch('/api/auth/login', {
-              method: 'POST',
-              body: { username: B.el('loginUser').value, password: B.el('loginPass').value },
-            });
-            B.setToken(TOKEN_KEY, data.token);
-            refreshAuthOut({ role: data.role });
-            B.toast('Sesión iniciada', 'success');
+        function renderCompanySummary(c) {
+          B.el('companyName').textContent = c.commercialName || c.name || 'Empresa';
+          B.el('companyMeta').textContent = `${c.legalName || ''} • ${c.province || ''}`.trim();
+          fillCompanyForm(c);
         }
 
-        async function registerCompany() {
-          const username = ensureFilled('regUser', 'username');
-          const password = ensureFilled('regPass', 'password');
-          const name = ensureFilled('regName', 'nombre de empresa');
-          const type = B.el('regType').value;
-          const email = ensureFilled('regEmail', 'email');
-          const phone = ensureFilled('regPhone', 'teléfono');
-          const address = ensureFilled('regAddress', 'dirección');
-
-          const data = await B.apiFetch('/api/auth/register/company', {
-            method: 'POST',
-            body: {
-              username,
-              password,
-              company: { name, type, email, phone, address },
-            },
-          });
-
-          B.setToken(TOKEN_KEY, data.token);
-          refreshAuthOut({ registered: true, company: data.company });
-          updateContractUi(data.contract || null);
-          B.toast('Empresa creada y sesión iniciada', 'success');
+        async function loadMe() {
+          const data = await B.apiFetch('/api/companies/me', { token: token() });
+          state.company = data.company;
+          state.contract = data.contract;
+          renderCompanySummary(state.company);
+          renderContractBox(state.contract);
         }
 
-        async function loadContract() {
-          const cid = companyIdFromToken();
-          if (!cid) throw new Error('No hay companyId (inicia sesión)');
-          const data = await B.apiFetch(`/api/companies/${cid}/contract`, { token: token() });
-          updateContractUi(data);
-          B.toast('Contrato cargado', 'info');
+        async function saveCompany() {
+          const payload = {
+            commercialName: B.el('fCommercialName').value,
+            legalName: B.el('fLegalName').value,
+            ruc: B.el('fRuc').value,
+            dv: B.el('fDv').value,
+            nit: B.el('fNit').value,
+            email: B.el('fEmail').value,
+            phone: B.el('fPhone').value,
+            address: B.el('fAddress').value,
+            province: B.el('fProvince').value,
+            district: B.el('fDistrict').value,
+            corregimiento: B.el('fCorregimiento').value,
+          };
+          const res = await B.apiFetch('/api/companies/me', { method: 'PUT', token: token(), body: payload });
+          state.company = res.company;
+          state.contract = res.contract;
+          renderCompanySummary(state.company);
+          renderContractBox(state.contract);
+          B.toast('Datos guardados', 'success');
         }
 
         async function acceptContract() {
-          const cid = companyIdFromToken();
-          if (!cid) throw new Error('No hay companyId (inicia sesión)');
-          const data = await B.apiFetch(`/api/companies/${cid}/contract/accept`, {
-            method: 'POST',
-            token: token(),
-            body: {},
-          });
-          updateContractUi(data);
+          await B.apiFetch('/api/companies/me/contract/accept', { method: 'POST', token: token(), body: {} });
+          await loadMe();
           B.toast('Contrato aceptado', 'success');
         }
 
-        async function createVacancy() {
-          const cid = companyIdFromToken();
-          if (!cid) throw new Error('No hay companyId (inicia sesión)');
-          const data = await B.apiFetch('/api/vacancies', {
-            method: 'POST',
-            token: token(),
-            body: {
-              companyId: cid,
-              title: B.el('vacTitle').value,
-              description: B.el('vacDesc').value,
-              location: B.el('vacLoc').value,
-              salary: B.el('vacSalary').value,
-              status: B.el('vacStatus').value,
-            },
-          });
-          await loadVacancies();
-          B.toast('Vacante creada', 'success');
-          return data;
+        const VAC_MINE_PAGE_SIZE = 8;
+        let allMyVacancies = [];
+        let myVacPage = 1;
+
+        function renderVacMinePager() {
+          const pager = B.el('vacPagerMine');
+          const meta = B.el('vacPagerMineMeta');
+          const prev = B.el('btnVacMinePrev');
+          const next = B.el('btnVacMineNext');
+
+          const total = allMyVacancies.length;
+          const totalPages = Math.max(1, Math.ceil(total / VAC_MINE_PAGE_SIZE));
+          const start = total ? (myVacPage - 1) * VAC_MINE_PAGE_SIZE + 1 : 0;
+          const end = Math.min(total, myVacPage * VAC_MINE_PAGE_SIZE);
+
+          pager.style.display = total > VAC_MINE_PAGE_SIZE ? 'flex' : 'none';
+          meta.textContent = total
+            ? `Mostrando ${start}-${end} de ${total} · Página ${myVacPage}/${totalPages}`
+            : 'Sin vacantes';
+
+          prev.disabled = myVacPage <= 1;
+          next.disabled = myVacPage >= totalPages;
         }
 
-        async function loadVacancies() {
-          const cid = companyIdFromToken();
-          if (!cid) throw new Error('No hay companyId (inicia sesión)');
-          const items = await B.apiFetch(`/api/vacancies?companyId=${encodeURIComponent(cid)}`);
-
+        function renderMyVacanciesPage() {
           const container = B.el('vacList');
           container.innerHTML = '';
-          if (!items.length) {
+
+          if (!allMyVacancies.length) {
+            renderVacMinePager();
             container.innerHTML = '<div class="small muted">No hay vacantes.</div>';
             return;
           }
 
-          items.forEach((v) => {
+          const totalPages = Math.max(1, Math.ceil(allMyVacancies.length / VAC_MINE_PAGE_SIZE));
+          myVacPage = Math.min(Math.max(1, myVacPage), totalPages);
+          const startIdx = (myVacPage - 1) * VAC_MINE_PAGE_SIZE;
+          const pageItems = allMyVacancies.slice(startIdx, startIdx + VAC_MINE_PAGE_SIZE);
+
+          renderVacMinePager();
+
+          pageItems.forEach((v) => {
             const div = document.createElement('div');
             div.className = 'card';
-            div.style.margin = '0';
             div.innerHTML = `
               <div class="item-title">${v.title}</div>
-              <div class="small muted">${v.status} • ${v.location || ''}</div>
-              <div class="small">id: ${v.id}</div>
-              <div class="inline" style="margin-top:10px;">
-                <button class="secondary fit">Cerrar</button>
-                <button class="secondary fit">Abrir</button>
-                <button class="fit">Eliminar</button>
+              <div class="small muted">ID: ${v.id}</div>
+              <div class="small muted">${v.status} • ${v.location || 'Sin ubicación'}</div>
+              <div class="small muted">${v.description || 'Sin descripción'}</div>
+              <div class="small">Salario: ${v.salary || 'N/A'}</div>
+              <div class="inline" style="gap:6px; margin-top:8px; flex-wrap:wrap;">
+                <button class="secondary">${v.status === 'open' ? 'Cerrar' : 'Abrir'}</button>
+                <button class="secondary">Eliminar</button>
               </div>
             `;
-            const [btnClose, btnOpen, btnDelete] = div.querySelectorAll('button');
+            const [btnToggle, btnDelete] = div.querySelectorAll('button');
 
-            btnClose.onclick = () => B.withButton(btnClose, async () => {
-              await B.apiFetch(`/api/vacancies/${v.id}`, { method: 'PUT', token: token(), body: { status: 'closed' } });
+            btnToggle.onclick = () => B.withButton(btnToggle, async () => {
+              const nextStatus = v.status === 'open' ? 'closed' : 'open';
+              await B.apiFetch(`/api/vacancies/${v.id}`, { method: 'PUT', token: token(), body: { status: nextStatus } });
               await loadVacancies();
-              B.toast('Vacante cerrada', 'info');
-            });
-
-            btnOpen.onclick = () => B.withButton(btnOpen, async () => {
-              await B.apiFetch(`/api/vacancies/${v.id}`, { method: 'PUT', token: token(), body: { status: 'open' } });
-              await loadVacancies();
-              B.toast('Vacante abierta', 'success');
+              B.toast(nextStatus === 'open' ? 'Vacante abierta' : 'Vacante cerrada', 'info');
             });
 
             btnDelete.onclick = () => B.withButton(btnDelete, async () => {
@@ -305,12 +363,166 @@
           });
         }
 
-        async function loadMyStats() {
-          const data = await B.apiFetch('/api/stats/empresa', { token: token() });
-          B.showJson(B.el('statsOut'), data);
+        async function loadVacancies() {
+          const items = await B.apiFetch('/api/vacancies/mine', { token: token() });
+          allMyVacancies = Array.isArray(items) ? items : [];
+          state.vacancies = allMyVacancies;
+          renderStatsVacancyOptions(allMyVacancies);
+          renderMyVacanciesPage();
         }
 
-        async function loadMyInvoices() {
+        B.el('btnVacMinePrev').onclick = () => {
+          myVacPage = Math.max(1, myVacPage - 1);
+          renderMyVacanciesPage();
+        };
+
+        B.el('btnVacMineNext').onclick = () => {
+          const totalPages = Math.max(1, Math.ceil(allMyVacancies.length / VAC_MINE_PAGE_SIZE));
+          myVacPage = Math.min(totalPages, myVacPage + 1);
+          renderMyVacanciesPage();
+        };
+
+        function renderStatsVacancyOptions(items) {
+          const sel = B.el('statsVacancySelect');
+          if (!sel) return;
+          const current = sel.value;
+          sel.innerHTML = '<option value="">Todas mis vacantes</option>';
+          (items || []).forEach((v) => {
+            const opt = document.createElement('option');
+            opt.value = v.id;
+            opt.textContent = `${v.title} (${v.status})`;
+            sel.appendChild(opt);
+          });
+          // Preserve selection if still exists
+          if (current && (items || []).some((v) => v.id === current)) sel.value = current;
+        }
+
+        function renderStats(data) {
+          const box = B.el('statsBox');
+          if (!box) return;
+          box.innerHTML = '';
+
+          if (!data || !data.stats) {
+            box.innerHTML = '<div class="small muted">Sin datos.</div>';
+            return;
+          }
+
+          const scopeTitle = data.scope === 'vacancy'
+            ? `Vacante: ${data.vacancy && data.vacancy.title ? data.vacancy.title : ''}`
+            : 'Empresa (todas las vacantes)';
+
+          const header = document.createElement('div');
+          header.className = 'card';
+          header.style.margin = '0';
+          header.innerHTML = `
+            <div class="item-title">${scopeTitle}</div>
+            <div class="small muted">Rango: ${new Date(data.start).toLocaleString()} → ${new Date(data.end).toLocaleString()}</div>
+          `;
+          box.appendChild(header);
+
+          const summary = document.createElement('div');
+          summary.className = 'card';
+          summary.style.margin = '0';
+          summary.innerHTML = `
+            <div class="item-title">Interacciones totales: ${data.stats.total}</div>
+            <div class="small muted">Basado en la tabla interactions (event/channel/intent) del backend.</div>
+          `;
+          box.appendChild(summary);
+
+          if (data.billing) {
+            const billing = document.createElement('div');
+            billing.className = 'card';
+            billing.style.margin = '0';
+            billing.innerHTML = `
+              <div class="item-title">Base de facturación (estimada)</div>
+              <div class="small">Peaje por interacción: ${Number(data.billing.tollPerInteraction).toFixed(2)} USD</div>
+              <div class="small">Subtotal: ${Number(data.billing.subtotal).toFixed(2)} USD</div>
+              <div class="small">ITBMS (${Number(data.billing.itbmsRate).toFixed(2)}%): ${Number(data.billing.itbmsAmount).toFixed(2)} USD</div>
+              <div class="small"><strong>Total:</strong> ${Number(data.billing.total).toFixed(2)} USD</div>
+            `;
+            box.appendChild(billing);
+          }
+
+          const chunks = [];
+          if (Array.isArray(data.stats.byEvent) && data.stats.byEvent.length) chunks.push({ title: 'Por evento', key: 'event', rows: data.stats.byEvent });
+          if (Array.isArray(data.stats.byChannel) && data.stats.byChannel.length) chunks.push({ title: 'Por canal', key: 'channel', rows: data.stats.byChannel });
+          if (Array.isArray(data.stats.byIntent) && data.stats.byIntent.length) chunks.push({ title: 'Top intent', key: 'intent', rows: data.stats.byIntent });
+
+          chunks.forEach((c) => {
+            const div = document.createElement('div');
+            div.className = 'card';
+            div.style.margin = '0';
+            const rowsHtml = c.rows.map((r) => `<tr><td>${r[c.key] || '(vacío)'}</td><td style="text-align:right;">${r.count}</td></tr>`).join('');
+            div.innerHTML = `
+              <div class="item-title">${c.title}</div>
+              <table style="width:100%; border-collapse:collapse; margin-top:6px;">
+                <thead><tr><th style="text-align:left;" class="small muted">${c.key}</th><th style="text-align:right;" class="small muted">count</th></tr></thead>
+                <tbody>${rowsHtml}</tbody>
+              </table>
+            `;
+            box.appendChild(div);
+          });
+
+          if (data.scope === 'company' && Array.isArray(data.stats.topVacancies) && data.stats.topVacancies.length) {
+            const div = document.createElement('div');
+            div.className = 'card';
+            div.style.margin = '0';
+            const rowsHtml = data.stats.topVacancies
+              .map((r) => `<tr><td>${r.title || r.id}</td><td style="text-align:right;">${r.count}</td></tr>`)
+              .join('');
+            div.innerHTML = `
+              <div class="item-title">Top vacantes (por interacciones)</div>
+              <table style="width:100%; border-collapse:collapse; margin-top:6px;">
+                <thead><tr><th style="text-align:left;" class="small muted">vacante</th><th style="text-align:right;" class="small muted">count</th></tr></thead>
+                <tbody>${rowsHtml}</tbody>
+              </table>
+            `;
+            box.appendChild(div);
+          }
+
+          if (!chunks.length && (!data.stats.topVacancies || !data.stats.topVacancies.length)) {
+            const empty = document.createElement('div');
+            empty.className = 'small muted';
+            empty.textContent = 'No hay desglose aún (si no hubo interacciones en el rango, el total será 0).';
+            box.appendChild(empty);
+          }
+        }
+
+        async function loadStats() {
+          const vacancyId = B.el('statsVacancySelect').value;
+          const qs = vacancyId ? `?vacancyId=${encodeURIComponent(vacancyId)}` : '';
+          const data = await B.apiFetch(`/api/stats/empresa${qs}`, { token: token() });
+          renderStats(data);
+          B.toast('Estadísticas cargadas', 'info');
+        }
+
+        async function createVacancy() {
+          const payload = {
+            title: B.el('vacTitle').value,
+            description: B.el('vacDesc').value,
+            location: B.el('vacLoc').value,
+            salary: B.el('vacSalary').value,
+          };
+          if (!payload.title) throw new Error('Falta título');
+          await B.apiFetch('/api/vacancies', { method: 'POST', token: token(), body: payload });
+          B.el('vacTitle').value = '';
+          B.el('vacDesc').value = '';
+          B.el('vacLoc').value = '';
+          B.el('vacSalary').value = '';
+          await loadVacancies();
+          B.toast('Vacante creada', 'success');
+        }
+
+        function formatDate(val) {
+          if (!val) return '';
+          try {
+            return new Date(val).toLocaleString();
+          } catch {
+            return String(val);
+          }
+        }
+
+        async function loadInvoices() {
           const items = await B.apiFetch('/api/invoices/my', { token: token() });
           const container = B.el('invoiceList');
           container.innerHTML = '';
@@ -318,60 +530,91 @@
             container.innerHTML = '<div class="small muted">No hay facturas aún.</div>';
             return;
           }
-
           items.forEach((inv) => {
             const div = document.createElement('div');
             div.className = 'card';
-            div.style.margin = '0';
-            const link = inv.file && inv.file.publicUrl ? `<a href="${inv.file.publicUrl}" target="_blank" rel="noreferrer">Abrir factura HTML</a>` : '(sin archivo)';
+            const url = inv.file && inv.file.publicUrl ? inv.file.publicUrl : null;
+            const idShort = inv.fiscalNumber || inv.id;
             div.innerHTML = `
-              <div class="item-title">Factura ${inv.id}</div>
-              <div class="small muted">Periodo: ${inv.periodStart} → ${inv.periodEnd}</div>
+              <div class="item-title">${idShort}</div>
+              <div class="small muted">Periodo: ${formatDate(inv.periodStart)} → ${formatDate(inv.periodEnd)}</div>
               <div class="small">Interacciones: ${inv.interactionsCount} • Total: ${inv.total}</div>
-              <div class="small">${link}</div>
+              <div class="inline" style="gap:6px; flex-wrap:wrap; margin-top:6px;">
+                ${url ? `<a class="secondary" href="${url}" target="_blank" rel="noreferrer">Ver factura</a>` : '<span class="small muted">Archivo no disponible</span>'}
+                ${url ? '<button class="secondary btn-copy">Copiar enlace</button>' : ''}
+                ${url ? '<button class="secondary btn-print">Imprimir/PDF</button>' : ''}
+              </div>
             `;
+
+            const copyBtn = div.querySelector('.btn-copy');
+            if (copyBtn && url) {
+              copyBtn.onclick = async () => {
+                try {
+                  await navigator.clipboard.writeText(url);
+                  B.toast('Enlace copiado');
+                } catch (e) {
+                  B.toast('No se pudo copiar', 'error');
+                }
+              };
+            }
+
+            const printBtn = div.querySelector('.btn-print');
+            if (printBtn && url) {
+              printBtn.onclick = () => {
+                const w = window.open(url, '_blank');
+                if (w) {
+                  w.focus();
+                  setTimeout(() => {
+                    try { w.print(); } catch (_err) {}
+                  }, 500);
+                }
+              };
+            }
+
             container.appendChild(div);
           });
         }
 
-        B.el('btnLogin').onclick = () => B.withButton(B.el('btnLogin'), async () => {
-          try { await login(); } catch (e) { B.toast(e.message || 'Error al iniciar sesión', 'error'); }
-        });
-        B.el('btnLogout').onclick = () => {
-          B.clearToken(TOKEN_KEY);
-          refreshAuthOut({ loggedOut: true });
-          B.toast('Sesión cerrada');
-        };
-        B.el('btnRegister').onclick = () => B.withButton(B.el('btnRegister'), async () => {
-          try { await registerCompany(); } catch (e) { B.toast(e.message || 'Error al registrar', 'error'); }
-        });
+        async function generateMyInvoice() {
+          await B.apiFetch('/api/invoices/generate/my', { method: 'POST', token: token(), body: {} });
+          await loadInvoices();
+          B.toast('Factura generada', 'success');
+        }
 
-        B.el('btnLoadContract').onclick = () => B.withButton(B.el('btnLoadContract'), async () => {
-          try { await loadContract(); } catch (e) { B.toast(e.message || 'Error al cargar contrato', 'error'); }
-        });
-        B.el('btnAcceptContract').onclick = () => B.withButton(B.el('btnAcceptContract'), async () => {
-          try { await acceptContract(); } catch (e) { B.toast(e.message || 'Error al aceptar contrato', 'error'); }
-        });
+        function wireEvents() {
+          B.el('btnLogout').onclick = () => {
+            B.clearToken(TOKEN_KEY);
+            location.href = '/login.html';
+          };
+          B.el('btnAcceptContract').onclick = () => B.withButton(B.el('btnAcceptContract'), acceptContract);
+          B.el('btnReloadContract').onclick = () => B.withButton(B.el('btnReloadContract'), loadMe);
+          B.el('btnSaveCompany').onclick = () => B.withButton(B.el('btnSaveCompany'), saveCompany);
+          B.el('btnCreateVac').onclick = () => B.withButton(B.el('btnCreateVac'), createVacancy);
+          B.el('btnLoadVac').onclick = () => B.withButton(B.el('btnLoadVac'), loadVacancies);
+          B.el('btnLoadInvoices').onclick = () => B.withButton(B.el('btnLoadInvoices'), loadInvoices);
+          B.el('btnGenerateInvoice').onclick = () => B.withButton(B.el('btnGenerateInvoice'), generateMyInvoice);
+          B.el('btnClearInvoices').onclick = () => (B.el('invoiceList').innerHTML = '');
 
-        B.el('btnCreateVac').onclick = () => B.withButton(B.el('btnCreateVac'), async () => {
-          try { await createVacancy(); } catch (e) { B.toast(e.message || 'Error al crear vacante', 'error'); }
-        });
-        B.el('btnLoadVac').onclick = () => B.withButton(B.el('btnLoadVac'), async () => {
-          try { await loadVacancies(); } catch (e) { B.toast(e.message || 'Error al cargar vacantes', 'error'); }
-        });
-        B.el('btnClearVac').onclick = () => (B.el('vacList').innerHTML = '');
+          B.el('btnLoadStats').onclick = () => B.withButton(B.el('btnLoadStats'), async () => {
+            try { await loadStats(); } catch (e) { B.toast(e.message || 'Error al cargar estadísticas', 'error'); }
+          });
+          B.el('btnClearStats').onclick = () => {
+            const box = B.el('statsBox');
+            if (box) box.innerHTML = '';
+          };
+        }
 
-        B.el('btnLoadInvoices').onclick = () => B.withButton(B.el('btnLoadInvoices'), async () => {
-          try { await loadMyInvoices(); } catch (e) { B.toast(e.message || 'Error al cargar facturas', 'error'); }
-        });
-        B.el('btnClearInvoices').onclick = () => (B.el('invoiceList').innerHTML = '');
+        function init() {
+          const payload = ensureAuth();
+          if (!payload) return;
+          wireEvents();
+          loadMe().catch((e) => B.toast(e.message || 'Error al cargar empresa', 'error'));
+          loadVacancies().catch(() => {});
+          loadInvoices().catch(() => {});
+          // No auto-load de stats para evitar ruido si el usuario no lo pide.
+        }
 
-        B.el('btnLoadStats').onclick = () => B.withButton(B.el('btnLoadStats'), async () => {
-          try { await loadMyStats(); } catch (e) { B.toast(e.message || 'Error al cargar estadísticas', 'error'); }
-        });
-        B.el('btnClearStats').onclick = () => (B.el('statsOut').textContent = '(sin datos)');
-
-        refreshAuthOut();
+        init();
       })();
     </script>
   </body>

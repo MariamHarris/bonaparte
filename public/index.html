@@ -13,6 +13,12 @@
       .stats-row { display: grid; grid-template-columns: 120px 1fr 60px; align-items: center; gap: 8px; font-size: 13px; }
       .stats-bar { height: 8px; border-radius: 999px; background: linear-gradient(90deg, #38bdf8, #6366f1); }
       .stats-badge { display: inline-block; padding: 2px 8px; border-radius: 999px; background: #1e293b; color: #e2e8f0; font-size: 12px; }
+      .chat-box { background: #0b1220; border: 1px solid #1f2937; border-radius: 12px; padding: 10px; min-height: 120px; }
+      .chat-bubble { margin-bottom: 10px; padding: 10px; border-radius: 10px; line-height: 1.4; }
+      .chat-user { background: #0ea5e9; color: #0b1220; text-align: right; }
+      .chat-bot { background: #111827; color: #e5e7eb; border: 1px solid #1f2937; }
+      .chat-meta { font-size: 12px; color: #cbd5e1; margin-bottom: 4px; }
+      .chat-suggestions { font-size: 12px; color: #a5b4fc; margin-top: 6px; }
     </style>
   </head>
   <body>
@@ -33,14 +39,48 @@
     <main class="container">
       <div class="hero">
         <h1>Portal Público</h1>
-        <p>Acceso público sin registro. Datos simulados para fines académicos en contexto Panamá.</p>
-        <p class="small muted">Abrir o detallar vacantes y usar el chatbot generan interacciones que alimentan el peaje (costo por visibilidad que factura la Empresa Consultora).</p>
+        <p>Acceso a vacantes simuladas en Panamá. Cada interacción (acceso, detalle, chat) alimenta el peaje que factura la consultora.</p>
         <div class="inline" style="margin-top:10px; gap:8px; flex-wrap:wrap;">
-          <span class="badge">Simulado · Panamá</span>
+          <span class="badge">Panamá</span>
           <span class="badge">Interacciones → Peaje</span>
-          <span class="badge">Sin registro</span>
+          <span class="badge">Datos académicos</span>
         </div>
       </div>
+
+      <section class="card">
+        <h2>Presentación</h2>
+        <p>Bonaparte es un prototipo de portal laboral para Panamá que muestra vacantes públicas y privadas, registra interacciones y genera facturación emulada (HTML tipo DGI).</p>
+        <div class="row">
+          <div>
+            <h3>Visión</h3>
+            <p>Ser el portal de referencia para talento y empresas en Panamá con trazabilidad de interacciones y cobro justo por visibilidad.</p>
+          </div>
+          <div>
+            <h3>Misión</h3>
+            <p>Conectar vacantes verificables por provincia, medir accesos/chats y ofrecer transparencia en el peaje y la facturación simulada.</p>
+          </div>
+        </div>
+        <div class="row" style="margin-top:12px;">
+          <div>
+            <h3>Servicios</h3>
+            <ul class="small">
+              <li>Listado público de vacantes (sin registro).</li>
+              <li>Chatbot contextual con registro de interacciones.</li>
+              <li>Estadísticas por vacante/empresa para consultora.</li>
+              <li>Facturación HTML emulada con ITBMS.</li>
+            </ul>
+          </div>
+          <div>
+            <h3>Ubicación</h3>
+            <ul class="small">
+              <li>Contexto: provincias de Panamá (simulado).</li>
+              <li>Frontend: Nginx 8080.</li>
+              <li>API: 3001.</li>
+              <li>Analytics: 8000 (FastAPI opcional).</li>
+            </ul>
+          </div>
+        </div>
+      </section>
 
       <section class="card">
         <h2>Visión y Misión (simulado)</h2>
@@ -56,6 +96,12 @@
           <div class="inline" style="margin-top: 10px;">
             <button id="btnLoad" class="fit">Cargar vacantes</button>
             <button id="btnClear" class="secondary fit">Limpiar</button>
+          </div>
+
+          <div id="vacPager" class="inline pager" style="margin-top:10px; display:none;">
+            <button id="btnVacPrev" class="secondary fit">Anterior</button>
+            <div id="vacPagerMeta" class="pager-meta"></div>
+            <button id="btnVacNext" class="secondary fit">Siguiente</button>
           </div>
 
           <div id="vacancies" class="list" style="margin-top: 12px;"></div>
@@ -74,10 +120,11 @@
           <div class="inline" style="margin-top: 10px;">
             <button id="btnAsk" class="fit">Preguntar</button>
             <button id="btnAskHelp" class="secondary fit">Ayuda</button>
+            <button id="btnChatClear" class="secondary fit">Limpiar chat</button>
           </div>
 
           <h3 style="margin-top: 14px;">Respuesta</h3>
-          <pre id="chatOut">(sin respuesta)</pre>
+          <div id="chatOut" class="chat-box">(sin respuesta)</div>
           <div id="chatStats" class="stats-box" aria-live="polite">
             <div class="stats-title">Estadísticas de la vacante (últimos 30 días)</div>
             <div class="stats-meta">Selecciona una vacante y pregunta algo para ver interacciones registradas (peaje).</div>
@@ -156,6 +203,7 @@
 
         let selectedVacancyId = null;
         let selectedVacancyTitle = null;
+        const chatMessages = [];
 
       function findProvince(value) {
         const text = String(value || '').toLowerCase();
@@ -193,17 +241,104 @@
           : '(ninguna)';
       }
 
+      function renderChat() {
+        const box = B.el('chatOut');
+        if (!chatMessages.length) {
+          box.textContent = '(sin respuesta)';
+          return;
+        }
+        box.innerHTML = '';
+        chatMessages.forEach((m) => {
+          const div = document.createElement('div');
+          div.className = `chat-bubble ${m.from === 'user' ? 'chat-user' : 'chat-bot'}`;
+          const meta = document.createElement('div');
+          meta.className = 'chat-meta';
+          meta.textContent = m.from === 'user' ? 'Tú' : 'Asistente';
+          const text = document.createElement('div');
+          text.textContent = m.text;
+          div.appendChild(meta);
+          div.appendChild(text);
+          if (m.suggestions && m.suggestions.length) {
+            const sug = document.createElement('div');
+            sug.className = 'chat-suggestions';
+            sug.textContent = 'Sugerencias: ';
+            m.suggestions.forEach((s, idx) => {
+              const btn = document.createElement('button');
+              btn.className = 'secondary';
+              btn.style.padding = '4px 10px';
+              btn.style.marginRight = idx === m.suggestions.length - 1 ? '0' : '6px';
+              btn.textContent = s;
+              btn.onclick = () => {
+                B.el('chatMessage').value = s;
+                B.withButton(B.el('btnAsk'), async () => {
+                  await askChat(s);
+                });
+              };
+              sug.appendChild(btn);
+            });
+            div.appendChild(sug);
+          }
+          box.appendChild(div);
+        });
+
+        // Auto-scroll to latest message
+        try { box.scrollTop = box.scrollHeight; } catch {}
+      }
+
       async function loadVacancies() {
         const items = await B.apiFetch('/api/vacancies');
+        allVacancies = Array.isArray(items) ? items : [];
+        currentVacPage = 1;
+        renderVacanciesPage();
+      }
+
+      const VAC_PAGE_SIZE = 10;
+      let allVacancies = [];
+      let currentVacPage = 1;
+
+      function renderVacPager() {
+        const pager = B.el('vacPager');
+        const meta = B.el('vacPagerMeta');
+        const prev = B.el('btnVacPrev');
+        const next = B.el('btnVacNext');
+
+        const total = allVacancies.length;
+        const totalPages = Math.max(1, Math.ceil(total / VAC_PAGE_SIZE));
+        const start = total ? (currentVacPage - 1) * VAC_PAGE_SIZE + 1 : 0;
+        const end = Math.min(total, currentVacPage * VAC_PAGE_SIZE);
+
+        if (total > VAC_PAGE_SIZE) {
+          pager.style.display = 'flex';
+        } else {
+          pager.style.display = 'none';
+        }
+
+        meta.textContent = total
+          ? `Mostrando ${start}-${end} de ${total} · Página ${currentVacPage}/${totalPages}`
+          : 'Sin vacantes';
+
+        prev.disabled = currentVacPage <= 1;
+        next.disabled = currentVacPage >= totalPages;
+      }
+
+      function renderVacanciesPage() {
         const container = B.el('vacancies');
         container.innerHTML = '';
 
-        if (!items.length) {
+        if (!allVacancies.length) {
+          renderVacPager();
           container.innerHTML = '<div class="small muted">No hay vacantes aún.</div>';
           return;
         }
 
-        items.forEach((v) => {
+        const totalPages = Math.max(1, Math.ceil(allVacancies.length / VAC_PAGE_SIZE));
+        currentVacPage = Math.min(Math.max(1, currentVacPage), totalPages);
+        const startIdx = (currentVacPage - 1) * VAC_PAGE_SIZE;
+        const pageItems = allVacancies.slice(startIdx, startIdx + VAC_PAGE_SIZE);
+
+        renderVacPager();
+
+        pageItems.forEach((v) => {
           const div = document.createElement('div');
           div.className = 'card';
           div.style.margin = '0';
@@ -241,13 +376,26 @@
         });
       }
 
+      B.el('btnVacPrev').onclick = () => {
+        currentVacPage = Math.max(1, currentVacPage - 1);
+        renderVacanciesPage();
+      };
+
+      B.el('btnVacNext').onclick = () => {
+        const totalPages = Math.max(1, Math.ceil(allVacancies.length / VAC_PAGE_SIZE));
+        currentVacPage = Math.min(totalPages, currentVacPage + 1);
+        renderVacanciesPage();
+      };
+
       async function askChat(message) {
         const payload = {
           message,
           vacancyId: selectedVacancyId,
         };
         const data = await B.apiFetch('/api/chatbot/ask', { method: 'POST', body: payload });
-        B.showJson(B.el('chatOut'), data);
+        chatMessages.push({ from: 'user', text: message || 'Mensaje vacío' });
+        chatMessages.push({ from: 'bot', text: data.answer?.text || 'Sin respuesta', suggestions: data.answer?.suggestions || [] });
+        renderChat();
         renderChatStats(data.stats);
       }
 
@@ -322,7 +470,11 @@
       B.el('btnClear').onclick = () => {
         B.el('vacancies').innerHTML = '';
         B.el('vacancyOut').textContent = '(sin selección)';
-        B.el('chatOut').textContent = '(sin respuesta)';
+        allVacancies = [];
+        currentVacPage = 1;
+        try { renderVacPager(); } catch {}
+        chatMessages.length = 0;
+        renderChat();
         B.el('chatStatsContent').innerHTML = '<div class="small muted">Aún no hay estadísticas; selecciona una vacante y consulta al chatbot.</div>';
         setSelectedVacancy(null);
       };
@@ -344,6 +496,13 @@
           B.toast(e.message || 'Error en chatbot', 'error');
         }
       });
+
+      B.el('btnChatClear').onclick = () => {
+        chatMessages.length = 0;
+        renderChat();
+        B.el('chatMessage').value = '';
+        B.toast('Chat limpiado', 'info');
+      };
 
       // Autoload (solo si hay token)
       if (ensureAuth()) {

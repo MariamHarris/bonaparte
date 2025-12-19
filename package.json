@@ -8,7 +8,8 @@
   },
   "scripts": {
     "start": "node backend/index.js",
-    "dev": "node --watch backend/index.js",
+    "dev": "node backend/index.js",
+    "dev:watch": "node --watch backend/index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],

@@ -45,7 +45,12 @@
             <input id="loginUser" placeholder="consultora_demo" />
             <label>Contraseña</label>
             <input id="loginPass" type="password" placeholder="demo123" />
-            <button id="btnLogin" style="margin-top:10px;">Entrar</button>
+            <div class="inline" style="margin-top:10px; gap:8px; flex-wrap:wrap;">
+              <button id="btnLogin" class="fit">Entrar</button>
+              <button id="btnDemoConsultora" class="secondary fit" title="Autocompleta demo">Demo consultora</button>
+              <button id="btnDemoEmpresa" class="secondary fit" title="Autocompleta demo">Demo empresa</button>
+            </div>
+            <div id="loginError" class="form-error" style="display:none;"></div>
           </div>
           <div class="muted" style="margin-top:10px;">El token se guarda en LocalStorage para usarlo en otras vistas.</div>
         </section>
@@ -122,6 +127,15 @@
           B.setToken(TOKEN_KEY, data.token);
           refreshTokenOut({ role: data.role });
           B.toast('Sesión iniciada', 'success');
+
+          // Redirigir al destino si viene en ?next; si no, según rol.
+          try {
+            const params = new URLSearchParams(location.search || '');
+            const next = params.get('next');
+            if (next) return (location.href = next);
+          } catch {}
+          if (data.role === 'empresa') return (location.href = '/empresa.html');
+          if (data.role === 'consultora') return (location.href = '/consultora.html');
         }
 
         async function registerConsultora() {
@@ -138,8 +152,10 @@
           const body = {
             username: B.el('regEmpUser').value,
             password: B.el('regEmpPass').value,
-            companyName: B.el('regEmpName').value,
-            type: B.el('regEmpType').value,
+            company: {
+              name: B.el('regEmpName').value,
+              type: B.el('regEmpType').value,
+            },
           };
           const data = await B.apiFetch('/api/auth/register/company', { method: 'POST', body });
           B.setToken(TOKEN_KEY, data.token);
@@ -147,8 +163,48 @@
           B.toast('Empresa creada', 'success');
         }
 
+        function setLoginError(msg) {
+          const el = B.el('loginError');
+          if (!msg) {
+            el.style.display = 'none';
+            el.textContent = '';
+            return;
+          }
+          el.textContent = msg;
+          el.style.display = 'block';
+        }
+
+        function demoFill(kind) {
+          if (kind === 'consultora') {
+            B.el('loginUser').value = 'consultora_demo';
+            B.el('loginPass').value = 'demo123';
+          } else {
+            B.el('loginUser').value = 'empresa_chiriqui';
+            B.el('loginPass').value = 'demo123';
+          }
+          setLoginError('');
+          B.toast('Credenciales demo cargadas');
+        }
+
         B.el('btnLogin').onclick = () => B.withButton(B.el('btnLogin'), async () => {
-          try { await login(); } catch (e) { B.toast(e.message || 'Error al iniciar sesión', 'error'); }
+          try {
+            setLoginError('');
+            await login();
+          } catch (e) {
+            setLoginError(e.message || 'Error al iniciar sesión');
+            B.toast(e.message || 'Error al iniciar sesión', 'error');
+          }
+        });
+
+        B.el('btnDemoConsultora').onclick = () => demoFill('consultora');
+        B.el('btnDemoEmpresa').onclick = () => demoFill('empresa');
+
+        // Enter para enviar
+        ;['loginUser', 'loginPass'].forEach((id) => {
+          const input = B.el(id);
+          input.addEventListener('keydown', (ev) => {
+            if (ev.key === 'Enter') B.el('btnLogin').click();
+          });
         });
 
         B.el('btnRegCons').onclick = () => B.withButton(B.el('btnRegCons'), async () => {

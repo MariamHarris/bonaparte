@@ -8,6 +8,14 @@
     <title>Bonaparte - Consultora</title>
     <link rel="stylesheet" href="/styles.css" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+      .chat-box { background: #0b1220; border: 1px solid #1f2937; border-radius: 12px; padding: 10px; min-height: 120px; }
+      .chat-bubble { margin-bottom: 10px; padding: 10px; border-radius: 10px; line-height: 1.4; }
+      .chat-user { background: #0ea5e9; color: #0b1220; text-align: right; }
+      .chat-bot { background: #111827; color: #e5e7eb; border: 1px solid #1f2937; }
+      .chat-meta { font-size: 12px; color: #cbd5e1; margin-bottom: 4px; }
+      .chat-suggestions { font-size: 12px; color: #a5b4fc; margin-top: 6px; }
+    </style>
   </head>
   <body>
     <header>
@@ -73,8 +81,15 @@
         <div class="inline" style="margin-top:10px;">
           <button id="btnLoadCompanies" class="fit">Cargar empresas</button>
           <button id="btnClearCompanies" class="secondary fit">Limpiar</button>
+          <button id="btnLoadReplication" class="secondary fit">Ver replicación (vivo)</button>
+        </div>
+        <div id="companiesPager" class="inline pager" style="margin-top:10px; display:none;">
+          <button id="btnCompaniesPrev" class="secondary fit">Anterior</button>
+          <div id="companiesPagerMeta" class="pager-meta"></div>
+          <button id="btnCompaniesNext" class="secondary fit">Siguiente</button>
         </div>
         <div id="companiesList" class="list" style="margin-top:12px;"></div>
+        <div id="replicationList" class="list" style="margin-top:12px;"></div>
       </section>
 
       <section class="card">
@@ -92,6 +107,9 @@
             <input id="statsVacancyId" placeholder="(pega un vacancyId)" />
             <button id="btnLoadStatsVacancy" style="margin-top:10px;">Cargar stats</button>
           </div>
+        </div>
+        <div class="inline" style="margin-top:10px;">
+          <button id="btnClearStats" class="secondary fit">Limpiar</button>
         </div>
         <pre id="statsOut">(sin datos)</pre>
       </section>
@@ -123,9 +141,10 @@
         <div class="inline" style="margin-top:10px;">
           <button id="btnAskConsultora" class="fit">Preguntar</button>
           <button id="btnAskConsultoraHelp" class="secondary fit">Ayuda</button>
+          <button id="btnChatbotReplication" class="secondary fit">Replicación (chatbot vivo)</button>
         </div>
         <h3 style="margin-top:14px;">Respuesta</h3>
-        <pre id="chatOutConsultora">(sin respuesta)</pre>
+        <div id="chatOutConsultora" class="chat-box">(sin respuesta)</div>
       </section>
 
       <section class="card">
@@ -166,6 +185,7 @@
         }
         const B = window.Bonaparte;
         const TOKEN_KEY = 'bonaparte_consultora_token';
+        const chatMessagesConsultora = [];
 
       function token() {
         return B.getToken(TOKEN_KEY);
@@ -204,7 +224,15 @@
         const companyId = B.el('statsCompanyId').value;
         if (!companyId) throw new Error('Ingresa companyId');
         const data = await B.apiFetch(`/api/stats/consultora?companyId=${encodeURIComponent(companyId)}`, { token: token() });
-        B.showJson(B.el('statsOut'), data);
+        const out = {
+          scope: data.scope,
+          company: data.company,
+          range: { start: data.start, end: data.end },
+          totalInteractions: data.stats && typeof data.stats.total === 'number' ? data.stats.total : null,
+          billing: data.billing || null,
+          stats: data.stats,
+        };
+        B.showJson(B.el('statsOut'), out);
         B.toast('Stats empresa cargadas', 'info');
       }
 
@@ -212,7 +240,15 @@
         const vacancyId = B.el('statsVacancyId').value;
         if (!vacancyId) throw new Error('Ingresa vacancyId');
         const data = await B.apiFetch(`/api/stats/consultora?vacancyId=${encodeURIComponent(vacancyId)}`, { token: token() });
-        B.showJson(B.el('statsOut'), data);
+        const out = {
+          scope: data.scope,
+          vacancy: data.vacancy,
+          range: { start: data.start, end: data.end },
+          totalInteractions: data.stats && typeof data.stats.total === 'number' ? data.stats.total : null,
+          billing: data.billing || null,
+          stats: data.stats,
+        };
+        B.showJson(B.el('statsOut'), out);
         B.toast('Stats vacante cargadas', 'info');
       }
 
@@ -302,7 +338,32 @@
       }
 
       async function loadAnalytics() {
-        const data = await B.apiFetch('/api/analytics/summary', { token: token() });
+        let data;
+        try {
+          data = await B.apiFetch('/api/analytics/summary', { token: token() });
+        } catch (e) {
+          // Fallback para demos si el backend Python no está disponible
+          data = {
+            byProvince: [
+              { label: 'Panamá', total: 5 },
+              { label: 'Chiriquí', total: 3 },
+              { label: 'Coclé', total: 2 },
+            ],
+            daily: [
+              { day: '2025-01-01', total: 2 },
+              { day: '2025-01-02', total: 4 },
+              { day: '2025-01-03', total: 1 },
+            ],
+            byIntent: [
+              { label: 'detalles', total: 4 },
+              { label: 'salario', total: 3 },
+              { label: 'ubicacion', total: 2 },
+            ],
+            error: e.message || 'Analytics no disponible',
+          };
+          B.toast('Analytics offline: usando datos demo', 'warn');
+        }
+
         B.showJson(B.el('analyticsRaw'), data);
 
         const provinceLabels = (data.byProvince || []).map((x) => x.label);
@@ -323,8 +384,54 @@
       async function askChatConsultora(message, vacancyId) {
         const payload = { message, vacancyId: vacancyId || undefined };
         const data = await B.apiFetch('/api/chatbot/ask', { method: 'POST', body: payload, token: token() });
-        B.showJson(B.el('chatOutConsultora'), data);
+        chatMessagesConsultora.push({ from: 'user', text: message || 'Mensaje vacío' });
+        chatMessagesConsultora.push({ from: 'bot', text: data.answer?.text || 'Sin respuesta', suggestions: data.answer?.suggestions || [] });
+        renderChatConsultora();
         B.toast('Respuesta del chatbot recibida', 'info');
+      }
+
+      function renderChatConsultora() {
+        const box = B.el('chatOutConsultora');
+        if (!chatMessagesConsultora.length) {
+          box.textContent = '(sin respuesta)';
+          return;
+        }
+        box.innerHTML = '';
+        chatMessagesConsultora.forEach((m) => {
+          const div = document.createElement('div');
+          div.className = `chat-bubble ${m.from === 'user' ? 'chat-user' : 'chat-bot'}`;
+          const meta = document.createElement('div');
+          meta.className = 'chat-meta';
+          meta.textContent = m.from === 'user' ? 'Tú' : 'Asistente';
+          const text = document.createElement('div');
+          text.textContent = m.text;
+          div.appendChild(meta);
+          div.appendChild(text);
+          if (m.suggestions && m.suggestions.length) {
+            const sug = document.createElement('div');
+            sug.className = 'chat-suggestions';
+            sug.textContent = 'Sugerencias: ';
+            m.suggestions.forEach((s, idx) => {
+              const btn = document.createElement('button');
+              btn.className = 'secondary fit';
+              btn.style.padding = '4px 10px';
+              btn.style.marginRight = idx === m.suggestions.length - 1 ? '0' : '6px';
+              btn.textContent = s;
+              btn.onclick = () => {
+                B.el('chatMessageConsultora').value = s;
+                B.withButton(B.el('btnAskConsultora'), async () => {
+                  await askChatConsultora(s, B.el('chatVacancyIdConsultora').value.trim());
+                });
+              };
+              sug.appendChild(btn);
+            });
+            div.appendChild(sug);
+          }
+          box.appendChild(div);
+        });
+
+        // Auto-scroll
+        try { box.scrollTop = box.scrollHeight; } catch {}
       }
 
       B.el('btnLogin').onclick = () => B.withButton(B.el('btnLogin'), async () => {
@@ -345,6 +452,11 @@
       B.el('btnLoadStatsVacancy').onclick = () => B.withButton(B.el('btnLoadStatsVacancy'), async () => {
         try { await loadStatsVacancy(); } catch (e) { B.toast(e.message || 'Error al cargar stats', 'error'); }
       });
+      B.el('btnClearStats').onclick = () => {
+        B.el('statsCompanyId').value = '';
+        B.el('statsVacancyId').value = '';
+        B.el('statsOut').textContent = '(sin datos)';
+      };
 
       B.el('btnGenerate').onclick = () => B.withButton(B.el('btnGenerate'), async () => {
         try { await generateInvoice(); } catch (e) { B.toast(e.message || 'Error al generar factura', 'error'); }
@@ -356,7 +468,16 @@
       B.el('btnLoadCompanies').onclick = () => B.withButton(B.el('btnLoadCompanies'), async () => {
         try { await loadCompanies(); } catch (e) { B.toast(e.message || 'Error al cargar empresas', 'error'); }
       });
-      B.el('btnClearCompanies').onclick = () => (B.el('companiesList').innerHTML = '');
+      B.el('btnClearCompanies').onclick = () => {
+        allCompanies = [];
+        companiesPage = 1;
+        const list = B.el('companiesList');
+        if (list) list.innerHTML = '';
+        try { renderCompaniesPager(); } catch {}
+      };
+      B.el('btnLoadReplication').onclick = () => B.withButton(B.el('btnLoadReplication'), async () => {
+        try { await openReplicationLiveWindow(); } catch (e) { B.toast(e.message || 'Error al cargar replicación', 'error'); }
+      });
       B.el('btnLoadAnalytics').onclick = () => B.withButton(B.el('btnLoadAnalytics'), async () => {
         try { await loadAnalytics(); } catch (e) { B.toast(e.message || 'Error al cargar analytics', 'error'); }
       });
@@ -386,17 +507,345 @@
         }
       });
 
+      B.el('btnChatbotReplication').onclick = () => B.withButton(B.el('btnChatbotReplication'), async () => {
+        try {
+          await openChatbotReplicationLiveWindow();
+        } catch (e) {
+          B.toast(e.message || 'Error al cargar replicación del chatbot', 'error');
+        }
+      });
+
+        function buildReplicationHtml(data, companiesData) {
+          const targets = (data && data.targets) || {};
+          const ordered = [targets.external, targets.internal, targets.proxyWrite, targets.proxyRead].filter(Boolean);
+
+          const esc = (v) => String(v ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+
+          const statusRows = ordered
+            .map((t) => {
+              const info = t.info || {};
+              const rep = t.replication || {};
+              const okText = t.ok ? 'OK' : 'ERROR';
+              const lag = rep.secondsBehind === null || rep.secondsBehind === undefined ? '' : String(rep.secondsBehind);
+              return `
+                <tr>
+                  <td>${esc(t.name)}</td>
+                  <td>${esc(okText)}</td>
+                  <td>${esc(t.host)}:${esc(t.port)}</td>
+                  <td>${esc(info.readOnly)}</td>
+                  <td>${esc(info.serverId)}</td>
+                  <td>${esc(info.version)}</td>
+                  <td>${esc(rep.ioRunning || '')}</td>
+                  <td>${esc(rep.sqlRunning || '')}</td>
+                  <td>${esc(lag)}</td>
+                  <td>${esc(rep.sourceHost || '')}</td>
+                  <td>${esc(rep.lastError || t.replicationError || t.warning || '')}</td>
+                  <td>${esc(t.error || '')}</td>
+                </tr>
+              `;
+            })
+            .join('');
+
+          const cols = [
+            'name',
+            'type',
+            'id',
+            'commercialName',
+            'legalName',
+            'ruc',
+            'dv',
+            'nit',
+            'province',
+            'district',
+            'corregimiento',
+            'email',
+            'phone',
+            'address',
+            'createdAt',
+            'updatedAt',
+          ];
+
+          function renderCompaniesTable(title, payload) {
+            const companies = (payload && payload.companies) || [];
+            const header = cols.map((c) => `<th>${esc(c)}</th>`).join('');
+            const body = companies
+              .map((c) => `<tr>${cols.map((k) => `<td>${esc(c[k] ?? '')}</td>`).join('')}</tr>`)
+              .join('');
+            return `
+              <div style="margin-top:14px;">
+                <div><b>${esc(title)}</b></div>
+                <div style="overflow:auto; max-width:100%;">
+                  <table border="1" cellpadding="6" cellspacing="0">
+                    <thead><tr>${header}</tr></thead>
+                    <tbody>${body || `<tr><td colspan="${cols.length}">(sin empresas)</td></tr>`}</tbody>
+                  </table>
+                </div>
+              </div>
+            `;
+          }
+
+          const ext = companiesData && companiesData.external;
+          const intl = companiesData && companiesData.internal;
+
+          const updatedAt = esc(new Date().toISOString());
+
+          return `
+            <div>Actualizado: ${updatedAt}</div>
+            <div style="overflow:auto; max-width:100%; margin-top:10px;">
+              <table border="1" cellpadding="6" cellspacing="0">
+                <thead>
+                  <tr>
+                    <th>Target</th>
+                    <th>Estado</th>
+                    <th>Host:Port</th>
+                    <th>ReadOnly</th>
+                    <th>ServerId</th>
+                    <th>Version</th>
+                    <th>IO</th>
+                    <th>SQL</th>
+                    <th>Lag(s)</th>
+                    <th>Source</th>
+                    <th>Notas/Error Replicación</th>
+                    <th>Error Conexión</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${statusRows || `<tr><td colspan="12">(sin datos)</td></tr>`}
+                </tbody>
+              </table>
+            </div>
+            ${renderCompaniesTable(`Primary (externa) ${ext ? `${ext.host}:${ext.port}` : ''}`, ext)}
+            ${renderCompaniesTable(`Replica (interna) ${intl ? `${intl.host}:${intl.port}` : ''}`, intl)}
+          `;
+        }
+
+        async function loadReplicationStatus() {
+          const [data, companiesData] = await Promise.all([
+            B.apiFetch('/api/replication/status', { token: token() }),
+            B.apiFetch('/api/replication/companies', { token: token() }),
+          ]);
+          const box = B.el('replicationList');
+          if (!box) return;
+          box.innerHTML = buildReplicationHtml(data, companiesData);
+
+          B.toast('Replicación actualizada', 'info');
+        }
+
+        async function openReplicationLiveWindow() {
+          const w = window.open('', 'bonaparte_replication_live', 'width=1200,height=800');
+          if (!w) {
+            // Popup bloqueado
+            await loadReplicationStatus();
+            B.toast('Popup bloqueado: mostrando en la página', 'warn');
+            return;
+          }
+
+          // HTML simple, estilo gestor (sin depender de CSS del sitio)
+          w.document.open();
+          w.document.write(`
+            <!doctype html>
+            <html lang="es">
+              <head>
+                <meta charset="utf-8" />
+                <meta name="viewport" content="width=device-width, initial-scale=1" />
+                <title>Bonaparte - Replicación (vivo)</title>
+              </head>
+              <body>
+                <h2>Replicación (vivo)</h2>
+                <div id="content">Cargando...</div>
+              </body>
+            </html>
+          `);
+          w.document.close();
+
+          const renderOnce = async () => {
+            const [data, companiesData] = await Promise.all([
+              B.apiFetch('/api/replication/status', { token: token() }),
+              B.apiFetch('/api/replication/companies', { token: token() }),
+            ]);
+            const el = w.document.getElementById('content');
+            if (el) el.innerHTML = buildReplicationHtml(data, companiesData);
+          };
+
+          await renderOnce();
+
+          const intervalMs = 3000;
+          const timer = setInterval(async () => {
+            try {
+              if (w.closed) {
+                clearInterval(timer);
+                return;
+              }
+              await renderOnce();
+            } catch {
+              // no-op: si falla un refresh, se reintenta en el siguiente tick
+            }
+          }, intervalMs);
+        }
+
+        function escapeHtml(v) {
+          return String(v ?? '')
+            .replaceAll('&', '&amp;')
+            .replaceAll('<', '&lt;')
+            .replaceAll('>', '&gt;')
+            .replaceAll('"', '&quot;')
+            .replaceAll("'", '&#039;');
+        }
+
+        function buildChatbotReplicationHtml(data) {
+          const updatedAt = escapeHtml((data && data.generatedAt) || new Date().toISOString());
+          const ext = data && data.external;
+          const intl = data && data.internal;
+
+          const cols = ['createdAt', 'id', 'event', 'intent', 'vacancyId', 'companyId', 'userMessage', 'assistantMessage'];
+          const renderTable = (title, block) => {
+            const items = (block && block.interactions) || [];
+            const body = items
+              .map((it) => {
+                const userMsg = it.userMessage ? String(it.userMessage) : '';
+                const assistantMsg = it.assistantMessage ? String(it.assistantMessage) : '';
+                const userShort = userMsg.length > 220 ? `${userMsg.slice(0, 220)}…` : userMsg;
+                const assistantShort = assistantMsg.length > 220 ? `${assistantMsg.slice(0, 220)}…` : assistantMsg;
+                return `
+                  <tr>
+                    <td>${escapeHtml(it.createdAt || '')}</td>
+                    <td>${escapeHtml(it.id || '')}</td>
+                    <td>${escapeHtml(it.event || '')}</td>
+                    <td>${escapeHtml(it.intent || '')}</td>
+                    <td>${escapeHtml(it.vacancyId || '')}</td>
+                    <td>${escapeHtml(it.companyId || '')}</td>
+                    <td>${escapeHtml(userShort)}</td>
+                    <td>${escapeHtml(assistantShort)}</td>
+                  </tr>
+                `;
+              })
+              .join('');
+
+            const hostPort = block ? `${block.host}:${block.port}` : '';
+            return `
+              <h3>${escapeHtml(title)}</h3>
+              <div>Host:Port: ${escapeHtml(hostPort)} • Filtro: channel=chatbot</div>
+              <div style="overflow:auto; max-width:100%; margin-top:10px;">
+                <table border="1" cellpadding="6" cellspacing="0">
+                  <thead>
+                    <tr>${cols.map((c) => `<th>${escapeHtml(c)}</th>`).join('')}</tr>
+                  </thead>
+                  <tbody>${body || `<tr><td colspan="${cols.length}">(sin interacciones)</td></tr>`}</tbody>
+                </table>
+              </div>
+            `;
+          };
+
+          return `
+            <div>Actualizado: ${updatedAt}</div>
+            <div style="margin-top:6px;">Esto compara las últimas interacciones del chatbot entre primary y replica para ver la replicación “en vivo”.</div>
+            ${renderTable('Primary (externa)', ext)}
+            ${renderTable('Replica (interna)', intl)}
+          `;
+        }
+
+        async function openChatbotReplicationLiveWindow() {
+          const w = window.open('', 'bonaparte_chatbot_replication_live', 'width=1200,height=800');
+          if (!w) {
+            B.toast('Popup bloqueado', 'warn');
+            return;
+          }
+
+          w.document.open();
+          w.document.write(`
+            <!doctype html>
+            <html lang="es">
+              <head>
+                <meta charset="utf-8" />
+                <meta name="viewport" content="width=device-width, initial-scale=1" />
+                <title>Bonaparte - Replicación (Chatbot en vivo)</title>
+              </head>
+              <body>
+                <h2>Replicación (Chatbot en vivo)</h2>
+                <div id="content">Cargando...</div>
+              </body>
+            </html>
+          `);
+          w.document.close();
+
+          const renderOnce = async () => {
+            const data = await B.apiFetch('/api/replication/chatbot?limit=25', { token: token() });
+            const el = w.document.getElementById('content');
+            if (el) el.innerHTML = buildChatbotReplicationHtml(data);
+          };
+
+          await renderOnce();
+
+          const intervalMs = 3000;
+          const timer = setInterval(async () => {
+            try {
+              if (w.closed) {
+                clearInterval(timer);
+                return;
+              }
+              await renderOnce();
+            } catch {
+              // no-op
+            }
+          }, intervalMs);
+        }
+
         async function loadCompanies() {
           const items = await B.apiFetch('/api/companies', { token: token() });
           const container = B.el('companiesList');
+          const replBox = B.el('replicationList');
+          container.innerHTML = '';
+          if (replBox) replBox.innerHTML = '';
+
+          // No mostrar empresas usadas por la verificación de replicación en el listado normal
+          allCompanies = (items || []).filter((c) => !String(c.name || '').toLowerCase().startsWith('empresa replication'));
+          companiesPage = 1;
+          renderCompaniesPage();
+        }
+
+        const COMPANIES_PAGE_SIZE = 10;
+        let allCompanies = [];
+        let companiesPage = 1;
+
+        function renderCompaniesPager() {
+          const pager = B.el('companiesPager');
+          const meta = B.el('companiesPagerMeta');
+          const prev = B.el('btnCompaniesPrev');
+          const next = B.el('btnCompaniesNext');
+
+          const total = allCompanies.length;
+          const totalPages = Math.max(1, Math.ceil(total / COMPANIES_PAGE_SIZE));
+          const start = total ? (companiesPage - 1) * COMPANIES_PAGE_SIZE + 1 : 0;
+          const end = Math.min(total, companiesPage * COMPANIES_PAGE_SIZE);
+
+          pager.style.display = total > COMPANIES_PAGE_SIZE ? 'flex' : 'none';
+          meta.textContent = total
+            ? `Mostrando ${start}-${end} de ${total} · Página ${companiesPage}/${totalPages}`
+            : 'Sin empresas';
+
+          prev.disabled = companiesPage <= 1;
+          next.disabled = companiesPage >= totalPages;
+        }
+
+        function renderCompaniesPage() {
+          const container = B.el('companiesList');
+          if (!container) return;
           container.innerHTML = '';
 
-          if (!items.length) {
+          if (!allCompanies.length) {
+            renderCompaniesPager();
             container.innerHTML = '<div class="small muted">No hay empresas registradas.</div>';
             return;
           }
 
-          items.forEach((c) => {
+          const totalPages = Math.max(1, Math.ceil(allCompanies.length / COMPANIES_PAGE_SIZE));
+          companiesPage = Math.min(Math.max(1, companiesPage), totalPages);
+          const startIdx = (companiesPage - 1) * COMPANIES_PAGE_SIZE;
+          const pageItems = allCompanies.slice(startIdx, startIdx + COMPANIES_PAGE_SIZE);
+
+          renderCompaniesPager();
+
+          pageItems.forEach((c) => {
             const div = document.createElement('div');
             div.className = 'card';
             div.style.margin = '0';
@@ -408,6 +857,17 @@
             container.appendChild(div);
           });
         }
+
+        B.el('btnCompaniesPrev').onclick = () => {
+          companiesPage = Math.max(1, companiesPage - 1);
+          renderCompaniesPage();
+        };
+
+        B.el('btnCompaniesNext').onclick = () => {
+          const totalPages = Math.max(1, Math.ceil(allCompanies.length / COMPANIES_PAGE_SIZE));
+          companiesPage = Math.min(totalPages, companiesPage + 1);
+          renderCompaniesPage();
+        };
 
       // defaults
       B.el('invStart').value = B.el('invStart').value || '2025-01-01T00:00:00.000Z';

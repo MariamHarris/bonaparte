@@ -103,7 +103,23 @@ async function deleteCompany(id) {
 async function getContract(companyId) {
   const pool = requirePool();
   const [rows] = await pool.query(
-    'SELECT company_id, accepted, accepted_at, toll_description, created_at FROM company_contracts WHERE company_id=? LIMIT 1',
+    `
+      SELECT
+        company_id,
+        accepted,
+        accepted_at,
+        toll_description,
+        toll_usd_per_interaction,
+        interaction_definition,
+        billing_terms,
+        contract_html,
+        contract_json,
+        contract_version,
+        created_at
+      FROM company_contracts
+      WHERE company_id=?
+      LIMIT 1
+    `,
     [companyId],
   );
   if (!rows[0]) return null;
@@ -213,15 +229,43 @@ async function resolveCompanyIdForVacancy(vacancyId, providedCompanyId) {
   return rows[0] ? rows[0].company_id : null;
 }
 
-async function recordInteraction({ vacancyId, companyId, channel = 'web', event = 'view', intent = null }) {
+function normalizeNullableText(value, { maxLen = 4000 } = {}) {
+  if (value === null || value === undefined) return null;
+  const s = String(value);
+  if (!s) return null;
+  return s.length > maxLen ? s.slice(0, maxLen) : s;
+}
+
+async function recordInteraction({
+  vacancyId,
+  companyId,
+  channel = 'web',
+  event = 'view',
+  intent = null,
+  userMessage = null,
+  assistantMessage = null,
+}) {
   const pool = requirePool();
   const id = randomUUID();
   const resolvedCompanyId = await resolveCompanyIdForVacancy(vacancyId, companyId);
+
+  const userMessageDb = normalizeNullableText(userMessage);
+  const assistantMessageDb = normalizeNullableText(assistantMessage);
+
   await pool.query(
-    'INSERT INTO interactions (id, vacancy_id, company_id, channel, event, intent) VALUES (?, ?, ?, ?, ?, ?)',
-    [id, vacancyId, resolvedCompanyId, channel, event, intent],
+    'INSERT INTO interactions (id, vacancy_id, company_id, channel, event, intent, user_message, assistant_message) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    [id, vacancyId, resolvedCompanyId, channel, event, intent, userMessageDb, assistantMessageDb],
   );
-  return { id, vacancyId, companyId: resolvedCompanyId, channel, event, intent };
+  return {
+    id,
+    vacancyId,
+    companyId: resolvedCompanyId,
+    channel,
+    event,
+    intent,
+    userMessage: userMessageDb,
+    assistantMessage: assistantMessageDb,
+  };
 }
 
 async function listInteractions({ vacancyId } = {}) {
@@ -237,6 +281,8 @@ async function listInteractions({ vacancyId } = {}) {
     channel: r.channel,
     event: r.event,
     intent: r.intent || null,
+    userMessage: r.user_message || null,
+    assistantMessage: r.assistant_message || null,
     createdAt: r.created_at ? new Date(r.created_at).toISOString() : null,
   }));
 }

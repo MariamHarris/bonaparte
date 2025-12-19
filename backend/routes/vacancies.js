@@ -12,6 +12,16 @@ const { authenticate, requireRole } = require('../middleware/auth');
 
 const router = express.Router();
 
+router.get('/mine', authenticate, requireRole('empresa'), async (req, res, next) => {
+  try {
+    if (!req.user.companyId) return res.status(400).json({ error: 'Empresa no asociada al usuario' });
+    const items = await listVacancies({ companyId: req.user.companyId });
+    res.json(items);
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.get('/', async (req, res, next) => {
   try {
     const companyId = req.query.companyId;
@@ -38,7 +48,8 @@ router.get('/:id', async (req, res, next) => {
 
 router.post('/', authenticate, requireRole('empresa'), async (req, res, next) => {
   try {
-    const { companyId, title, description, location, salary, status } = req.body || {};
+    const { title, description, location, salary, status } = req.body || {};
+    const companyId = req.body && req.body.companyId ? req.body.companyId : req.user.companyId;
     if (!companyId) return res.status(400).json({ error: 'companyId es requerido' });
     if (!title) return res.status(400).json({ error: 'title es requerido' });
 

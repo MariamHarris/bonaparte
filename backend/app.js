@@ -10,6 +10,7 @@ const invoicesRouter = require('./routes/invoices');
 const chatbotRouter = require('./routes/chatbot');
 const statsRouter = require('./routes/stats');
 const analyticsRouter = require('./routes/analytics');
+const replicationRouter = require('./routes/replication');
 
 const app = express();
 
@@ -29,6 +30,7 @@ app.use('/api/invoices', invoicesRouter);
 app.use('/api/chatbot', chatbotRouter);
 app.use('/api/stats', statsRouter);
 app.use('/api/analytics', analyticsRouter);
+app.use('/api/replication', replicationRouter);
 
 // Not found
 app.use((req, res) => {

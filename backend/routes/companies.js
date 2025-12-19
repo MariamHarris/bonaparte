@@ -11,11 +11,49 @@ const { authenticate, requireRole } = require('../middleware/auth');
 
 const router = express.Router();
 
+function ensureCompanyBound(req, res) {
+  if (!req.user || !req.user.companyId) {
+    res.status(400).json({ error: 'Empresa no asociada al usuario' });
+    return null;
+  }
+  return req.user.companyId;
+}
+
+router.get('/me', authenticate, requireRole('empresa'), async (req, res, next) => {
+  try {
+    const companyId = ensureCompanyBound(req, res);
+    if (!companyId) return;
+    const company = await getCompanyById(companyId);
+    if (!company) return res.status(404).json({ error: 'Empresa no encontrada' });
+    const contract = await getContract(companyId);
+    res.json({ company, contract });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.put('/me', authenticate, requireRole('empresa'), async (req, res, next) => {
+  try {
+    const companyId = ensureCompanyBound(req, res);
+    if (!companyId) return;
+    const updated = await updateCompany(companyId, req.body || {});
+    if (!updated) return res.status(404).json({ error: 'Empresa no encontrada' });
+    const contract = await getContract(companyId);
+    res.json({ company: updated, contract });
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.get('/', authenticate, async (req, res, next) => {
   try {
     if (req.user.role === 'consultora') {
+      const includeReplication = String(req.query.includeReplication || '').toLowerCase() === 'true';
       const items = await listCompanies();
-      return res.json(items);
+      const filtered = includeReplication
+        ? items
+        : (items || []).filter((c) => !String(c.name || '').toLowerCase().startsWith('empresa replication'));
+      return res.json(filtered);
     }
 
     if (req.user.role === 'empresa') {
@@ -72,6 +110,30 @@ router.delete('/:id', authenticate, requireRole('consultora'), async (req, res, 
     const existed = await deleteCompany(req.params.id);
     if (!existed) return res.status(404).json({ error: 'Empresa no encontrada' });
     res.status(204).send();
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get('/me/contract', authenticate, requireRole('empresa'), async (req, res, next) => {
+  try {
+    const companyId = ensureCompanyBound(req, res);
+    if (!companyId) return;
+    const contract = await getContract(companyId);
+    if (!contract) return res.status(404).json({ error: 'Contrato no encontrado' });
+    res.json(contract);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/me/contract/accept', authenticate, requireRole('empresa'), async (req, res, next) => {
+  try {
+    const companyId = ensureCompanyBound(req, res);
+    if (!companyId) return;
+    const updated = await acceptContract(companyId);
+    if (!updated) return res.status(404).json({ error: 'Contrato no encontrado' });
+    res.json(updated);
   } catch (err) {
     next(err);
   }

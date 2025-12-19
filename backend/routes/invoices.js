@@ -84,6 +84,73 @@ router.post('/generate', requireConsultora, async (req, res, next) => {
   }
 });
 
+// Empresa: generar su propia factura (ventana móvil 30 días)
+router.post('/generate/my', authenticate, async (req, res, next) => {
+  try {
+    if (!req.user || req.user.role !== 'empresa') {
+      return res.status(403).json({ error: 'Acceso solo para empresa' });
+    }
+    if (!req.user.companyId) {
+      return res.status(400).json({ error: 'Empresa no asociada al usuario' });
+    }
+
+    const companyId = req.user.companyId;
+    const company = await getCompanyById(companyId);
+    if (!company) return res.status(404).json({ error: 'Empresa no encontrada' });
+
+    const now = new Date();
+    const start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const end = now;
+    const toll = typeof req.body?.tollPerInteraction === 'number' ? Number(req.body.tollPerInteraction) : 0.25;
+
+    const interactionsCount = await countInteractionsForCompany({ companyId, start, end });
+    const subtotal = Number((interactionsCount * toll).toFixed(2));
+    const itbmsRate = 7.0;
+    const itbmsAmount = Number((subtotal * (itbmsRate / 100)).toFixed(2));
+    const grandTotal = Number((subtotal + itbmsAmount).toFixed(2));
+    const fiscalNumber = `BPA-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 9000) + 1000)}`;
+
+    const invoice = await createInvoice({
+      companyId,
+      periodStart: start,
+      periodEnd: end,
+      interactionsCount,
+      tollPerInteraction: toll,
+      subtotal,
+      itbmsRate,
+      itbmsAmount,
+      total: grandTotal,
+      grandTotal,
+      fiscalNumber,
+      status: 'issued',
+    });
+
+    const dgiEmulation = {
+      fiscalNumber: invoice.fiscalNumber || fiscalNumber,
+      ruc: company.ruc || '155-789-456',
+      dv: company.dv || '82',
+      nit: company.nit || null,
+      itbmsRate,
+      type: 'Factura Fiscal (Emulada)',
+    };
+
+    const html = buildInvoiceHtml({ invoice, company, dgi: dgiEmulation });
+    const { relativePath } = await writeInvoiceHtmlFile({ invoiceId: invoice.id, html });
+    await upsertInvoiceFile({ invoiceId: invoice.id, relativePath });
+
+    const base = process.env.INVOICES_PUBLIC_BASE || 'http://localhost:8080';
+    const publicUrl = `${base.replace(/\/$/, '')}/${relativePath}`;
+
+    res.status(201).json({
+      invoice,
+      dgiEmulation,
+      file: { relativePath, publicUrl },
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.get('/', requireConsultora, async (req, res, next) => {
   try {
     const items = await listInvoices();

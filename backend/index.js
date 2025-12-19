@@ -12,9 +12,25 @@ async function startServer() {
   if (pool) {
     await ensureSchema(pool);
   }
-  app.listen(PORT, () => {
+
+  const server = app.listen(PORT, () => {
     console.log(`Servidor backend escuchando en puerto ${PORT}`);
   });
+
+  server.on('error', (err) => {
+    console.error('Error al iniciar servidor HTTP:', err && err.message ? err.message : err);
+    if (err && err.code) console.error('Código:', err.code);
+    process.exit(1);
+  });
 }
+
+process.on('unhandledRejection', (err) => {
+  console.error('Unhandled Promise Rejection:', err);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err);
+  process.exit(1);
+});
 
 startServer();

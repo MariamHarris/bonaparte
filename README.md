@@ -65,6 +65,8 @@ npm run dev   # backend en 3001
 ## Replicación (opcional)
 - Puertos: primary 3307, replica 3308, HAProxy RW 6033 / RO 6034.
 - Verificación: `node scripts/verify-mysql-replication.js`.
+- Permisos para ver lag/IO/SQL en vivo (endpoint `GET /api/replication/status`):
+	- `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/grant-replication-status-perms.ps1`
 
 ## Decisiones técnicas
 - Node/Express + MySQL (mysql2) y Mongo (opcional).

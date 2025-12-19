@@ -27,8 +27,12 @@ CREATE TABLE IF NOT EXISTS vacancies (
 CREATE TABLE IF NOT EXISTS interactions (
   id CHAR(36) PRIMARY KEY,
   vacancy_id CHAR(36) NOT NULL,
+  company_id CHAR(36) NULL,
   channel VARCHAR(50) NOT NULL DEFAULT 'web',
   event VARCHAR(50) NOT NULL DEFAULT 'view',
+  intent VARCHAR(100) NULL,
+  user_message TEXT NULL,
+  assistant_message TEXT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_interaction_vacancy FOREIGN KEY (vacancy_id) REFERENCES vacancies(id)
 );
