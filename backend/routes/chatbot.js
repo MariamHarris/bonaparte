@@ -149,7 +149,7 @@ router.post('/ask', async (req, res, next) => {
     if (vacancyId) {
       linkedVacancy = await getVacancyById(String(vacancyId));
       if (linkedVacancy) {
-        await recordInteraction({ vacancyId: linkedVacancy.id, channel: 'chatbot', event: 'chat' });
+        await recordInteraction({ vacancyId: linkedVacancy.id, channel: 'chatbot', event: 'chat', intent: intentUsed });
         vacancyStats = await getVacancyInteractionStats({ vacancyId: linkedVacancy.id, start, end });
       }
     }

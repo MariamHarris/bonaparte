@@ -43,6 +43,7 @@ class AnalyticsSummary(BaseModel):
     totals: dict
     byChannel: list[dict]
     byProvince: list[dict]
+    byIntent: list[dict]
     daily: list[dict]
 
 def require_token(x_api_key: Optional[str] = Header(default=None)):
@@ -144,11 +145,27 @@ async def analytics_summary(start: Optional[str] = None, end: Optional[str] = No
             if row["day"] is not None
         ]
 
+        # By intent (chatbot)
+        intent_q = text(
+            """
+            SELECT COALESCE(intent, 'unknown') AS intent, COUNT(*) AS total
+            FROM interactions
+            WHERE created_at BETWEEN :start AND :end
+              AND intent IS NOT NULL
+            GROUP BY intent
+            ORDER BY total DESC
+            LIMIT 10
+            """
+        )
+        intent_rows = (await conn.execute(intent_q, {"start": start_dt, "end": end_dt})).mappings().all()
+        by_intent = [{"label": row["intent"], "total": int(row["total"])} for row in intent_rows]
+
     return AnalyticsSummary(
         window={"start": start_dt.isoformat(), "end": end_dt.isoformat()},
         totals=totals,
         byChannel=by_channel,
         byProvince=by_province,
+        byIntent=by_intent,
         daily=daily,
     )
 

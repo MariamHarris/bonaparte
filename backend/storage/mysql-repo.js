@@ -213,15 +213,15 @@ async function resolveCompanyIdForVacancy(vacancyId, providedCompanyId) {
   return rows[0] ? rows[0].company_id : null;
 }
 
-async function recordInteraction({ vacancyId, companyId, channel = 'web', event = 'view' }) {
+async function recordInteraction({ vacancyId, companyId, channel = 'web', event = 'view', intent = null }) {
   const pool = requirePool();
   const id = randomUUID();
   const resolvedCompanyId = await resolveCompanyIdForVacancy(vacancyId, companyId);
   await pool.query(
-    'INSERT INTO interactions (id, vacancy_id, company_id, channel, event) VALUES (?, ?, ?, ?, ?)',
-    [id, vacancyId, resolvedCompanyId, channel, event],
+    'INSERT INTO interactions (id, vacancy_id, company_id, channel, event, intent) VALUES (?, ?, ?, ?, ?, ?)',
+    [id, vacancyId, resolvedCompanyId, channel, event, intent],
   );
-  return { id, vacancyId, companyId: resolvedCompanyId, channel, event };
+  return { id, vacancyId, companyId: resolvedCompanyId, channel, event, intent };
 }
 
 async function listInteractions({ vacancyId } = {}) {
@@ -236,6 +236,7 @@ async function listInteractions({ vacancyId } = {}) {
     companyId: r.company_id,
     channel: r.channel,
     event: r.event,
+    intent: r.intent || null,
     createdAt: r.created_at ? new Date(r.created_at).toISOString() : null,
   }));
 }
@@ -373,6 +374,22 @@ async function getCompanyInteractionStats({ companyId, start, end }) {
     [companyId, companyId, start, end],
   );
 
+  const [byIntentRows] = await pool.query(
+    `
+      SELECT i.intent, COUNT(*) AS cnt
+      FROM interactions i
+      LEFT JOIN vacancies v ON v.id = i.vacancy_id
+      WHERE (i.company_id = ? OR (i.company_id IS NULL AND v.company_id = ?))
+        AND i.created_at >= ?
+        AND i.created_at <= ?
+        AND i.intent IS NOT NULL
+      GROUP BY i.intent
+      ORDER BY cnt DESC
+      LIMIT 10
+    `,
+    [companyId, companyId, start, end],
+  );
+
   const [dailyRows] = await pool.query(
     `
       SELECT DATE(i.created_at) AS day, COUNT(*) AS cnt
@@ -408,6 +425,7 @@ async function getCompanyInteractionStats({ companyId, start, end }) {
     byEvent: byEventRows.map((r) => ({ event: r.event, count: Number(r.cnt) })),
     daily: dailyRows.map((r) => ({ day: String(r.day), count: Number(r.cnt) })),
     topVacancies: topVacanciesRows.map((r) => ({ id: r.vacancy_id, title: r.title, count: Number(r.cnt) })),
+    byIntent: byIntentRows.map((r) => ({ intent: r.intent, count: Number(r.cnt) })),
   };
 }
 
@@ -451,6 +469,21 @@ async function getVacancyInteractionStats({ vacancyId, start, end }) {
     [vacancyId, start, end],
   );
 
+  const [byIntentRows] = await pool.query(
+    `
+      SELECT intent, COUNT(*) AS cnt
+      FROM interactions
+      WHERE vacancy_id = ?
+        AND created_at >= ?
+        AND created_at <= ?
+        AND intent IS NOT NULL
+      GROUP BY intent
+      ORDER BY cnt DESC
+      LIMIT 10
+    `,
+    [vacancyId, start, end],
+  );
+
   const [dailyRows] = await pool.query(
     `
       SELECT DATE(created_at) AS day, COUNT(*) AS cnt
@@ -469,6 +502,7 @@ async function getVacancyInteractionStats({ vacancyId, start, end }) {
     byChannel: byChannelRows.map((r) => ({ channel: r.channel, count: Number(r.cnt) })),
     byEvent: byEventRows.map((r) => ({ event: r.event, count: Number(r.cnt) })),
     daily: dailyRows.map((r) => ({ day: String(r.day), count: Number(r.cnt) })),
+    byIntent: byIntentRows.map((r) => ({ intent: r.intent, count: Number(r.cnt) })),
   };
 }
 

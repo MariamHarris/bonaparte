@@ -54,7 +54,7 @@ npm run dev   # backend en 3001
 ## Analytics/Chatbot en Python
 - Microservicio FastAPI opcional (puerto 8000) con resumen de interacciones y chatbot de apoyo.
 - Backend Node consume `PY_ANALYTICS_URL` y usa `PY_ANALYTICS_TOKEN` como x-api-key interna.
-- Front consultora muestra gráficos (provincias y serie diaria) usando `/api/analytics/summary`.
+- Front consultora muestra gráficos (provincias, serie diaria e intenciones de chatbot) usando `/api/analytics/summary`.
 
 ## CI/CD
 - `.github/workflows/ci.yml` instala dependencias y ejecuta `npm test` en push/PR a `main`.

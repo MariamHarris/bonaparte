@@ -24,6 +24,7 @@ async function ensureSchema(pool) {
 
   // Interacciones con referencia directa a la empresa
   await addColumnIfMissing(pool, 'interactions', 'company_id', 'CHAR(36) NULL AFTER vacancy_id');
+  await addColumnIfMissing(pool, 'interactions', 'intent', 'VARCHAR(100) NULL AFTER event');
 
   // Facturas con ITBMS y numeración fiscal
   await addColumnIfMissing(pool, 'invoices', 'subtotal', 'DECIMAL(10,2) NOT NULL DEFAULT 0 AFTER toll_per_interaction');

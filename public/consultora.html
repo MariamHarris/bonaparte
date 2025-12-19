@@ -107,6 +107,9 @@
           <div class="chart-box"><canvas id="chartProvince" height="220"></canvas></div>
           <div class="chart-box"><canvas id="chartDaily" height="220"></canvas></div>
         </div>
+        <div class="row" style="margin-top:12px;">
+          <div class="chart-box"><canvas id="chartIntent" height="220"></canvas></div>
+        </div>
         <pre id="analyticsRaw">(sin datos)</pre>
       </section>
 
@@ -255,6 +258,7 @@
 
       let provinceChart;
       let dailyChart;
+      let intentChart;
 
       function renderBar(canvasId, labels, dataset, label) {
         const ctx = B.el(canvasId);
@@ -265,6 +269,7 @@
         }
         if (canvasId === 'chartProvince' && provinceChart) provinceChart.destroy();
         if (canvasId === 'chartDaily' && dailyChart) dailyChart.destroy();
+        if (canvasId === 'chartIntent' && intentChart) intentChart.destroy();
 
         const chart = new Chart(ctx, {
           type: 'bar',
@@ -293,6 +298,7 @@
 
         if (canvasId === 'chartProvince') provinceChart = chart;
         if (canvasId === 'chartDaily') dailyChart = chart;
+        if (canvasId === 'chartIntent') intentChart = chart;
       }
 
       async function loadAnalytics() {
@@ -306,6 +312,10 @@
         const dailyLabels = (data.daily || []).map((x) => x.day);
         const dailyTotals = (data.daily || []).map((x) => x.total);
         renderBar('chartDaily', dailyLabels, dailyTotals, 'Interacciones diarias');
+
+        const intentLabels = (data.byIntent || []).map((x) => x.label || x.intent || 'intent');
+        const intentTotals = (data.byIntent || []).map((x) => x.total || x.count || 0);
+        renderBar('chartIntent', intentLabels, intentTotals, 'Intenciones chatbot');
 
         B.toast('Analytics cargadas', 'info');
       }
@@ -353,6 +363,7 @@
       B.el('btnClearAnalytics').onclick = () => {
         if (provinceChart) provinceChart.destroy();
         if (dailyChart) dailyChart.destroy();
+        if (intentChart) intentChart.destroy();
         B.el('analyticsRaw').textContent = '(sin datos)';
       };
 
