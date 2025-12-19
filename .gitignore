@@ -3,5 +3,8 @@ node_modules/
 .DS_Store
 npm-debug.log*
 
+# Local run temp files
+.tmp-backend.*
+
 # Generated invoice artifacts
 public/invoices/*.html
