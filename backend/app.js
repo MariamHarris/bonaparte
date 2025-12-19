@@ -7,6 +7,8 @@ const companiesRouter = require('./routes/companies');
 const vacanciesRouter = require('./routes/vacancies');
 const interactionsRouter = require('./routes/interactions');
 const invoicesRouter = require('./routes/invoices');
+const chatbotRouter = require('./routes/chatbot');
+const statsRouter = require('./routes/stats');
 
 const app = express();
 
@@ -23,6 +25,8 @@ app.use('/api/companies', companiesRouter);
 app.use('/api/vacancies', vacanciesRouter);
 app.use('/api/interactions', interactionsRouter);
 app.use('/api/invoices', invoicesRouter);
+app.use('/api/chatbot', chatbotRouter);
+app.use('/api/stats', statsRouter);
 
 // Not found
 app.use((req, res) => {

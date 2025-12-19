@@ -248,6 +248,148 @@ async function getInvoiceFile(invoiceId) {
     : null;
 }
 
+async function getCompanyInteractionStats({ companyId, start, end }) {
+  const pool = requirePool();
+
+  const [totalRows] = await pool.query(
+    `
+      SELECT COUNT(*) AS cnt
+      FROM interactions i
+      JOIN vacancies v ON v.id = i.vacancy_id
+      WHERE v.company_id = ?
+        AND i.created_at >= ?
+        AND i.created_at <= ?
+    `,
+    [companyId, start, end],
+  );
+
+  const [byChannelRows] = await pool.query(
+    `
+      SELECT i.channel, COUNT(*) AS cnt
+      FROM interactions i
+      JOIN vacancies v ON v.id = i.vacancy_id
+      WHERE v.company_id = ?
+        AND i.created_at >= ?
+        AND i.created_at <= ?
+      GROUP BY i.channel
+      ORDER BY cnt DESC
+    `,
+    [companyId, start, end],
+  );
+
+  const [byEventRows] = await pool.query(
+    `
+      SELECT i.event, COUNT(*) AS cnt
+      FROM interactions i
+      JOIN vacancies v ON v.id = i.vacancy_id
+      WHERE v.company_id = ?
+        AND i.created_at >= ?
+        AND i.created_at <= ?
+      GROUP BY i.event
+      ORDER BY cnt DESC
+    `,
+    [companyId, start, end],
+  );
+
+  const [dailyRows] = await pool.query(
+    `
+      SELECT DATE(i.created_at) AS day, COUNT(*) AS cnt
+      FROM interactions i
+      JOIN vacancies v ON v.id = i.vacancy_id
+      WHERE v.company_id = ?
+        AND i.created_at >= ?
+        AND i.created_at <= ?
+      GROUP BY DATE(i.created_at)
+      ORDER BY day ASC
+    `,
+    [companyId, start, end],
+  );
+
+  const [topVacanciesRows] = await pool.query(
+    `
+      SELECT v.id AS vacancy_id, v.title, COUNT(*) AS cnt
+      FROM interactions i
+      JOIN vacancies v ON v.id = i.vacancy_id
+      WHERE v.company_id = ?
+        AND i.created_at >= ?
+        AND i.created_at <= ?
+      GROUP BY v.id, v.title
+      ORDER BY cnt DESC
+      LIMIT 10
+    `,
+    [companyId, start, end],
+  );
+
+  return {
+    total: Number(totalRows[0].cnt || 0),
+    byChannel: byChannelRows.map((r) => ({ channel: r.channel, count: Number(r.cnt) })),
+    byEvent: byEventRows.map((r) => ({ event: r.event, count: Number(r.cnt) })),
+    daily: dailyRows.map((r) => ({ day: String(r.day), count: Number(r.cnt) })),
+    topVacancies: topVacanciesRows.map((r) => ({ id: r.vacancy_id, title: r.title, count: Number(r.cnt) })),
+  };
+}
+
+async function getVacancyInteractionStats({ vacancyId, start, end }) {
+  const pool = requirePool();
+
+  const [totalRows] = await pool.query(
+    `
+      SELECT COUNT(*) AS cnt
+      FROM interactions
+      WHERE vacancy_id = ?
+        AND created_at >= ?
+        AND created_at <= ?
+    `,
+    [vacancyId, start, end],
+  );
+
+  const [byChannelRows] = await pool.query(
+    `
+      SELECT channel, COUNT(*) AS cnt
+      FROM interactions
+      WHERE vacancy_id = ?
+        AND created_at >= ?
+        AND created_at <= ?
+      GROUP BY channel
+      ORDER BY cnt DESC
+    `,
+    [vacancyId, start, end],
+  );
+
+  const [byEventRows] = await pool.query(
+    `
+      SELECT event, COUNT(*) AS cnt
+      FROM interactions
+      WHERE vacancy_id = ?
+        AND created_at >= ?
+        AND created_at <= ?
+      GROUP BY event
+      ORDER BY cnt DESC
+    `,
+    [vacancyId, start, end],
+  );
+
+  const [dailyRows] = await pool.query(
+    `
+      SELECT DATE(created_at) AS day, COUNT(*) AS cnt
+      FROM interactions
+      WHERE vacancy_id = ?
+        AND created_at >= ?
+        AND created_at <= ?
+      GROUP BY DATE(created_at)
+      ORDER BY day ASC
+    `,
+    [vacancyId, start, end],
+  );
+
+  return {
+    total: Number(totalRows[0].cnt || 0),
+    byChannel: byChannelRows.map((r) => ({ channel: r.channel, count: Number(r.cnt) })),
+    byEvent: byEventRows.map((r) => ({ event: r.event, count: Number(r.cnt) })),
+    daily: dailyRows.map((r) => ({ day: String(r.day), count: Number(r.cnt) })),
+  };
+}
+
 function mapCompanyRow(r) {
   return {
     id: r.id,
@@ -310,4 +452,6 @@ module.exports = {
   getInvoiceById,
   upsertInvoiceFile,
   getInvoiceFile,
+  getCompanyInteractionStats,
+  getVacancyInteractionStats,
 };

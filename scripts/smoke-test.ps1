@@ -1,6 +1,9 @@
 $ErrorActionPreference = 'Stop'
 
 $base = 'http://127.0.0.1:3001'
+$suffix = [guid]::NewGuid().ToString('N').Substring(0,8)
+$consultoraUsername = "consultora_demo_$suffix"
+$empresaUsername = "empresa_demo_$suffix"
 
 Write-Host '1) Health'
 $health = Invoke-RestMethod -Method Get -Uri "$base/api/health"
@@ -8,7 +11,7 @@ $health | ConvertTo-Json -Depth 5
 
 Write-Host "`n2) Registrar consultora (JWT)"
 $consultora = Invoke-RestMethod -Method Post -Uri "$base/api/auth/register/consultora" -ContentType 'application/json' -Body (@{
-  username = 'consultora_demo'
+  username = $consultoraUsername
   password = 'demo123'
 } | ConvertTo-Json)
 $consultoraToken = $consultora.token
@@ -16,7 +19,7 @@ Write-Host "consultoraToken=OK"
 
 Write-Host "`n3) Registrar empresa + compañía (JWT)"
 $companyResp = Invoke-RestMethod -Method Post -Uri "$base/api/auth/register/company" -ContentType 'application/json' -Body (@{
-  username = 'empresa_demo'
+  username = $empresaUsername
   password = 'demo123'
   company = @{
     name = 'Empresa Demo'
@@ -45,9 +48,20 @@ Write-Host "`n5) Ver vacante (registra interacción)"
 $vacancyRead = Invoke-RestMethod -Method Get -Uri "$base/api/vacancies/$vacancyId"
 $vacancyRead | ConvertTo-Json -Depth 5
 
+Write-Host "`n5.1) Chatbot (registra interacción por chat)"
+$chat = Invoke-RestMethod -Method Post -Uri "$base/api/chatbot/ask" -ContentType 'application/json' -Body (@{
+  message = '¿Qué es el peaje y cómo se factura?'
+  vacancyId = $vacancyId
+} | ConvertTo-Json)
+$chat | ConvertTo-Json -Depth 6
+
 Write-Host "`n6) Ver interacciones (JWT consultora)"
 $interactions = Invoke-RestMethod -Method Get -Uri "$base/api/interactions" -Headers @{ 'Authorization' = "Bearer $consultoraToken" }
 $interactions | ConvertTo-Json -Depth 5
+
+Write-Host "`n6.1) Estadísticas (consultora -> empresa)"
+$statsCompany = Invoke-RestMethod -Method Get -Uri "$base/api/stats/consultora?companyId=$companyId" -Headers @{ 'Authorization' = "Bearer $consultoraToken" }
+$statsCompany | ConvertTo-Json -Depth 7
 
 Write-Host "`n7) Generar factura (JWT consultora)"
 $invoice = Invoke-RestMethod -Method Post -Uri "$base/api/invoices/generate" -Headers @{ 'Authorization' = "Bearer $consultoraToken" } -ContentType 'application/json' -Body (@{

@@ -71,6 +71,17 @@ Al generar una factura, el backend crea un archivo HTML en `public/invoices/` y 
 
 - Base pública: `INVOICES_PUBLIC_BASE` (por defecto `http://localhost:8080`)
 
+## Chatbot
+Endpoint público para guiar dudas (FAQ/intent simple):
+- `POST /api/chatbot/ask` con `{ "message": "...", "vacancyId": "..." }` (vacancyId es opcional)
+
+Si envías `vacancyId`, el sistema registra una interacción (channel=`chatbot`, event=`chat`) para estadísticas y facturación.
+
+## Estadísticas (fundamento del peaje)
+Se exponen estadísticas de interacciones (totales, por canal/evento, serie diaria, top vacantes):
+- Consultora: `GET /api/stats/consultora?companyId=...` o `GET /api/stats/consultora?vacancyId=...`
+- Empresa: `GET /api/stats/empresa` (solo su propia empresa)
+
 ---
 
 > Sustituya este archivo con información relevante a medida que el proyecto evolucione.
