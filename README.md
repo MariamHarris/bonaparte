@@ -27,6 +27,11 @@ Este proyecto es un prototipo de sitio web para la gestión de vacantes de empre
 - Instala Docker Desktop para Windows y asegúrate que el comando `docker` funcione en PowerShell.
 - Luego ejecuta: `docker compose --env-file .env -f docker/docker-compose.yml up -d`
 
+Esto levanta:
+- MongoDB (27017)
+- MySQL (3306)
+- Nginx para facturas HTML (8080)
+
 **Opción B: instalación local (sin Docker)**
 - Instala MongoDB (puerto 27017) y MySQL (puerto 3306) en tu máquina.
 - Verifica que `.env` apunte a `127.0.0.1`.
@@ -48,6 +53,23 @@ Puertos:
 
 ### Verificar replicación
 - `node scripts/verify-mysql-replication.js`
+
+---
+
+## Autenticación (JWT)
+Este prototipo usa autenticación real con **usuario/contraseña** y devuelve un **JWT**.
+
+- Registrar consultora: `POST /api/auth/register/consultora`
+- Registrar empresa + compañía: `POST /api/auth/register/company`
+- Login: `POST /api/auth/login`
+
+Para endpoints protegidos usa header:
+- `Authorization: Bearer <token>`
+
+## Facturas (HTML + Nginx)
+Al generar una factura, el backend crea un archivo HTML en `public/invoices/` y devuelve un `publicUrl`.
+
+- Base pública: `INVOICES_PUBLIC_BASE` (por defecto `http://localhost:8080`)
 
 ---
 

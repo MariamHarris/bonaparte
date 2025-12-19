@@ -1,52 +1,108 @@
 const express = require('express');
-const { companies, createCompany } = require('../storage/memory');
-const { requireEmpresa } = require('../middleware/auth');
+const {
+  listCompanies,
+  getCompanyById,
+  updateCompany,
+  deleteCompany,
+  getContract,
+  acceptContract,
+} = require('../storage/mysql-repo');
+const { authenticate, requireRole } = require('../middleware/auth');
 
 const router = express.Router();
 
-router.get('/', (req, res) => {
-  res.json(Array.from(companies.values()));
+router.get('/', authenticate, async (req, res, next) => {
+  try {
+    if (req.user.role === 'consultora') {
+      const items = await listCompanies();
+      return res.json(items);
+    }
+
+    if (req.user.role === 'empresa') {
+      if (!req.user.companyId) return res.json([]);
+      const company = await getCompanyById(req.user.companyId);
+      return res.json(company ? [company] : []);
+    }
+
+    res.status(403).json({ error: 'Acceso denegado' });
+  } catch (err) {
+    next(err);
+  }
 });
 
-router.get('/:id', (req, res) => {
-  const company = companies.get(req.params.id);
-  if (!company) return res.status(404).json({ error: 'Empresa no encontrada' });
-  res.json(company);
+router.get('/:id', authenticate, async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    if (req.user.role === 'empresa' && req.user.companyId && req.user.companyId !== id) {
+      return res.status(403).json({ error: 'Acceso denegado' });
+    }
+    const company = await getCompanyById(id);
+    if (!company) return res.status(404).json({ error: 'Empresa no encontrada' });
+    res.json(company);
+  } catch (err) {
+    next(err);
+  }
 });
 
-router.post('/', requireEmpresa, (req, res) => {
-  const { name, type, email, phone, address } = req.body || {};
-  if (!name) return res.status(400).json({ error: 'name es requerido' });
-  const company = createCompany({ name, type, email, phone, address });
-  // MVP: contrato digital emulado
-  res.status(201).json({
-    company,
-    contract: {
-      accepted: false,
-      tollDescription:
-        'El costo del peaje se calculará por interacción (accesos a vacantes).',
-    },
-  });
+// La creación de empresa + usuario se hace por /api/auth/register/company
+router.post('/', authenticate, requireRole('consultora'), async (req, res, next) => {
+  try {
+    res.status(400).json({ error: 'Use /api/auth/register/company para registrar una empresa' });
+  } catch (err) {
+    next(err);
+  }
 });
 
-router.put('/:id', requireEmpresa, (req, res) => {
-  const company = companies.get(req.params.id);
-  if (!company) return res.status(404).json({ error: 'Empresa no encontrada' });
-
-  const patch = req.body || {};
-  const updated = {
-    ...company,
-    ...patch,
-    updatedAt: new Date().toISOString(),
-  };
-  companies.set(company.id, updated);
-  res.json(updated);
+router.put('/:id', authenticate, async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    if (req.user.role === 'empresa' && req.user.companyId && req.user.companyId !== id) {
+      return res.status(403).json({ error: 'Acceso denegado' });
+    }
+    const updated = await updateCompany(id, req.body || {});
+    if (!updated) return res.status(404).json({ error: 'Empresa no encontrada' });
+    res.json(updated);
+  } catch (err) {
+    next(err);
+  }
 });
 
-router.delete('/:id', requireEmpresa, (req, res) => {
-  const existed = companies.delete(req.params.id);
-  if (!existed) return res.status(404).json({ error: 'Empresa no encontrada' });
-  res.status(204).send();
+router.delete('/:id', authenticate, requireRole('consultora'), async (req, res, next) => {
+  try {
+    const existed = await deleteCompany(req.params.id);
+    if (!existed) return res.status(404).json({ error: 'Empresa no encontrada' });
+    res.status(204).send();
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get('/:id/contract', authenticate, async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    if (req.user.role === 'empresa' && req.user.companyId && req.user.companyId !== id) {
+      return res.status(403).json({ error: 'Acceso denegado' });
+    }
+    const contract = await getContract(id);
+    if (!contract) return res.status(404).json({ error: 'Contrato no encontrado' });
+    res.json(contract);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/:id/contract/accept', authenticate, async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    if (req.user.role !== 'empresa') return res.status(403).json({ error: 'Acceso solo para empresa' });
+    if (req.user.companyId && req.user.companyId !== id) return res.status(403).json({ error: 'Acceso denegado' });
+
+    const updated = await acceptContract(id);
+    if (!updated) return res.status(404).json({ error: 'Contrato no encontrado' });
+    res.json(updated);
+  } catch (err) {
+    next(err);
+  }
 });
 
 module.exports = router;

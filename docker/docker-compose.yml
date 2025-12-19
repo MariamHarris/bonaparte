@@ -23,6 +23,14 @@ services:
       - mysql_data:/var/lib/mysql
       - ../database/mysql:/docker-entrypoint-initdb.d:ro
 
+  invoices-web:
+    image: nginx:alpine
+    container_name: bonaparte-invoices-web
+    ports:
+      - "8080:80"
+    volumes:
+      - ../public:/usr/share/nginx/html:ro
+
 volumes:
   mongo_data:
   mysql_data:

@@ -1,53 +1,88 @@
 const express = require('express');
-const { vacancies, companies, createVacancy, recordInteraction } = require('../storage/memory');
-const { requireEmpresa } = require('../middleware/auth');
+const {
+  listVacancies,
+  getVacancyById,
+  createVacancy,
+  updateVacancy,
+  deleteVacancy,
+  recordInteraction,
+  getCompanyById,
+} = require('../storage/mysql-repo');
+const { authenticate, requireRole } = require('../middleware/auth');
 
 const router = express.Router();
 
-router.get('/', (req, res) => {
-  const companyId = req.query.companyId;
-  const all = Array.from(vacancies.values());
-  res.json(companyId ? all.filter((v) => v.companyId === companyId) : all);
+router.get('/', async (req, res, next) => {
+  try {
+    const companyId = req.query.companyId;
+    const items = await listVacancies({ companyId });
+    res.json(items);
+  } catch (err) {
+    next(err);
+  }
 });
 
-router.get('/:id', (req, res) => {
-  const vacancy = vacancies.get(req.params.id);
-  if (!vacancy) return res.status(404).json({ error: 'Vacante no encontrada' });
+router.get('/:id', async (req, res, next) => {
+  try {
+    const vacancy = await getVacancyById(req.params.id);
+    if (!vacancy) return res.status(404).json({ error: 'Vacante no encontrada' });
 
-  // Registrar interacción (acceso) para facturación
-  recordInteraction({ vacancyId: vacancy.id, event: 'view', channel: 'web' });
+    // Registrar interacción (acceso) para facturación
+    await recordInteraction({ vacancyId: vacancy.id, event: 'view', channel: 'web' });
 
-  res.json(vacancy);
+    res.json(vacancy);
+  } catch (err) {
+    next(err);
+  }
 });
 
-router.post('/', requireEmpresa, (req, res) => {
-  const { companyId, title, description, location, salary, status } = req.body || {};
-  if (!companyId) return res.status(400).json({ error: 'companyId es requerido' });
-  if (!companies.get(companyId)) return res.status(400).json({ error: 'companyId inválido' });
-  if (!title) return res.status(400).json({ error: 'title es requerido' });
+router.post('/', authenticate, requireRole('empresa'), async (req, res, next) => {
+  try {
+    const { companyId, title, description, location, salary, status } = req.body || {};
+    if (!companyId) return res.status(400).json({ error: 'companyId es requerido' });
+    if (!title) return res.status(400).json({ error: 'title es requerido' });
 
-  const vacancy = createVacancy({ companyId, title, description, location, salary, status });
-  res.status(201).json(vacancy);
+    if (req.user.companyId && req.user.companyId !== companyId) {
+      return res.status(403).json({ error: 'No puedes crear vacantes para otra empresa' });
+    }
+
+    const company = await getCompanyById(companyId);
+    if (!company) return res.status(400).json({ error: 'companyId inválido' });
+
+    const vacancy = await createVacancy({ companyId, title, description, location, salary, status });
+    res.status(201).json(vacancy);
+  } catch (err) {
+    next(err);
+  }
 });
 
-router.put('/:id', requireEmpresa, (req, res) => {
-  const vacancy = vacancies.get(req.params.id);
-  if (!vacancy) return res.status(404).json({ error: 'Vacante no encontrada' });
-
-  const patch = req.body || {};
-  const updated = {
-    ...vacancy,
-    ...patch,
-    updatedAt: new Date().toISOString(),
-  };
-  vacancies.set(vacancy.id, updated);
-  res.json(updated);
+router.put('/:id', authenticate, requireRole('empresa'), async (req, res, next) => {
+  try {
+    const existing = await getVacancyById(req.params.id);
+    if (!existing) return res.status(404).json({ error: 'Vacante no encontrada' });
+    if (req.user.companyId && req.user.companyId !== existing.companyId) {
+      return res.status(403).json({ error: 'Acceso denegado' });
+    }
+    const updated = await updateVacancy(existing.id, req.body || {});
+    res.json(updated);
+  } catch (err) {
+    next(err);
+  }
 });
 
-router.delete('/:id', requireEmpresa, (req, res) => {
-  const existed = vacancies.delete(req.params.id);
-  if (!existed) return res.status(404).json({ error: 'Vacante no encontrada' });
-  res.status(204).send();
+router.delete('/:id', authenticate, requireRole('empresa'), async (req, res, next) => {
+  try {
+    const existing = await getVacancyById(req.params.id);
+    if (!existing) return res.status(404).json({ error: 'Vacante no encontrada' });
+    if (req.user.companyId && req.user.companyId !== existing.companyId) {
+      return res.status(403).json({ error: 'Acceso denegado' });
+    }
+    const existed = await deleteVacancy(existing.id);
+    if (!existed) return res.status(404).json({ error: 'Vacante no encontrada' });
+    res.status(204).send();
+  } catch (err) {
+    next(err);
+  }
 });
 
 module.exports = router;
