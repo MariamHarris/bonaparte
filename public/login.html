@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Bonaparte - Login</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <style>
+      .login-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+      .muted { color: #94a3b8; font-size: 13px; }
+      .token-box { background: #0f172a; border: 1px solid #1e293b; border-radius: 10px; padding: 10px; font-size: 12px; }
+      .inline-input { display: grid; gap: 6px; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="container">
+        <div class="nav">
+          <span class="brand">Bonaparte</span>
+          <a href="/">Público</a>
+          <a href="/empresa.html">Empresa</a>
+          <a href="/consultora.html">Consultora</a>
+          <a href="/login.html">Login</a>
+          <span class="badge">UI: 8080</span>
+        </div>
+      </div>
+    </header>
+
+    <main class="container">
+      <div class="hero">
+        <h1>Acceso</h1>
+        <p>Ingresa con tu usuario/contraseña. El backend devuelve un JWT con rol (`empresa` o `consultora`).</p>
+        <div class="inline" style="gap:8px; flex-wrap:wrap; margin-top:10px;">
+          <span class="badge">Login</span>
+          <span class="badge">Registro consultora</span>
+          <span class="badge">Registro empresa + compañía</span>
+        </div>
+      </div>
+
+      <div class="login-grid">
+        <section class="card">
+          <h2>Login</h2>
+          <div class="inline-input">
+            <label>Usuario</label>
+            <input id="loginUser" placeholder="consultora_demo" />
+            <label>Contraseña</label>
+            <input id="loginPass" type="password" placeholder="demo123" />
+            <button id="btnLogin" style="margin-top:10px;">Entrar</button>
+          </div>
+          <div class="muted" style="margin-top:10px;">El token se guarda en LocalStorage para usarlo en otras vistas.</div>
+        </section>
+
+        <section class="card">
+          <h2>Registro Consultora</h2>
+          <div class="inline-input">
+            <label>Usuario</label>
+            <input id="regConsUser" placeholder="consultora_nueva" />
+            <label>Contraseña</label>
+            <input id="regConsPass" type="password" placeholder="demo123" />
+            <button id="btnRegCons" style="margin-top:10px;">Crear consultora</button>
+          </div>
+        </section>
+
+        <section class="card">
+          <h2>Registro Empresa</h2>
+          <div class="inline-input">
+            <label>Usuario</label>
+            <input id="regEmpUser" placeholder="empresa_nueva" />
+            <label>Contraseña</label>
+            <input id="regEmpPass" type="password" placeholder="demo123" />
+            <label>Nombre de compañía</label>
+            <input id="regEmpName" placeholder="Empresa Demo" />
+            <label>Tipo de empresa</label>
+            <select id="regEmpType">
+              <option value="private">Privada</option>
+              <option value="public">Pública</option>
+            </select>
+            <button id="btnRegEmp" style="margin-top:10px;">Crear empresa</button>
+          </div>
+        </section>
+      </div>
+
+      <section class="card" style="margin-top:16px;">
+        <h2>Token y rol</h2>
+        <div class="muted">Se muestra el payload del JWT para que puedas copiarlo y navegar a Empresa/Consultora.</div>
+        <div class="inline" style="gap:8px; margin-top:8px; flex-wrap:wrap;">
+          <button id="btnCopyToken" class="secondary">Copiar token</button>
+          <button id="btnClearToken" class="secondary">Cerrar sesión</button>
+        </div>
+        <pre id="tokenOut" class="token-box">(sin sesión)</pre>
+      </section>
+    </main>
+
+    <script src="/app.js?v=1"></script>
+    <script>
+      (() => {
+        if (!window.Bonaparte) {
+          alert('No cargó /app.js. Abre la web desde http://localhost:8080 y revisa consola.');
+          throw new Error('Bonaparte frontend: window.Bonaparte not found');
+        }
+        const B = window.Bonaparte;
+        const TOKEN_KEY = 'bonaparte_login_token';
+
+        function token() {
+          return B.getToken(TOKEN_KEY);
+        }
+
+        function refreshTokenOut(extra) {
+          const payload = token() ? B.decodeJwt(token()) : null;
+          B.showJson(B.el('tokenOut'), {
+            hasToken: Boolean(token()),
+            payload,
+            ...extra,
+          });
+        }
+
+        async function login() {
+          const data = await B.apiFetch('/api/auth/login', {
+            method: 'POST',
+            body: { username: B.el('loginUser').value, password: B.el('loginPass').value },
+          });
+          B.setToken(TOKEN_KEY, data.token);
+          refreshTokenOut({ role: data.role });
+          B.toast('Sesión iniciada', 'success');
+        }
+
+        async function registerConsultora() {
+          const data = await B.apiFetch('/api/auth/register/consultora', {
+            method: 'POST',
+            body: { username: B.el('regConsUser').value, password: B.el('regConsPass').value },
+          });
+          B.setToken(TOKEN_KEY, data.token);
+          refreshTokenOut({ registered: 'consultora' });
+          B.toast('Consultora creada', 'success');
+        }
+
+        async function registerEmpresa() {
+          const body = {
+            username: B.el('regEmpUser').value,
+            password: B.el('regEmpPass').value,
+            companyName: B.el('regEmpName').value,
+            type: B.el('regEmpType').value,
+          };
+          const data = await B.apiFetch('/api/auth/register/company', { method: 'POST', body });
+          B.setToken(TOKEN_KEY, data.token);
+          refreshTokenOut({ registered: 'empresa', companyId: data.company && data.company.id });
+          B.toast('Empresa creada', 'success');
+        }
+
+        B.el('btnLogin').onclick = () => B.withButton(B.el('btnLogin'), async () => {
+          try { await login(); } catch (e) { B.toast(e.message || 'Error al iniciar sesión', 'error'); }
+        });
+
+        B.el('btnRegCons').onclick = () => B.withButton(B.el('btnRegCons'), async () => {
+          try { await registerConsultora(); } catch (e) { B.toast(e.message || 'Error al registrar consultora', 'error'); }
+        });
+
+        B.el('btnRegEmp').onclick = () => B.withButton(B.el('btnRegEmp'), async () => {
+          try { await registerEmpresa(); } catch (e) { B.toast(e.message || 'Error al registrar empresa', 'error'); }
+        });
+
+        B.el('btnCopyToken').onclick = async () => {
+          if (!token()) return B.toast('No hay token', 'error');
+          try {
+            await navigator.clipboard.writeText(token());
+            B.toast('Token copiado');
+          } catch (e) {
+            B.toast('No se pudo copiar', 'error');
+          }
+        };
+
+        B.el('btnClearToken').onclick = () => {
+          B.clearToken(TOKEN_KEY);
+          refreshTokenOut({ loggedOut: true });
+          B.toast('Sesión cerrada');
+        };
+
+        refreshTokenOut();
+      })();
+    </script>
+  </body>
+</html>

@@ -23,6 +23,8 @@
           <a href="/">Público</a>
           <a href="/empresa.html">Empresa</a>
           <a href="/consultora.html">Consultora</a>
+          <a href="/login.html">Login</a>
+          <button id="btnLogout" class="secondary" style="padding:6px 12px;">Logout</button>
           <span class="badge">UI: 8080</span>
         </div>
       </div>
@@ -99,6 +101,32 @@
           throw new Error('Bonaparte frontend: window.Bonaparte not found');
         }
         const B = window.Bonaparte;
+        const TOKEN_KEY = 'bonaparte_login_token';
+
+        function token() {
+          return B.getToken(TOKEN_KEY);
+        }
+
+        function ensureAuth() {
+          const t = token();
+          if (!t) {
+            const next = encodeURIComponent(location.pathname + location.search);
+            location.href = `/login.html?next=${next}`;
+            return false;
+          }
+          const payload = B.decodeJwt(t) || {};
+          const badge = document.createElement('span');
+          badge.className = 'badge';
+          badge.textContent = `${payload.username || 'usuario'} · ${payload.role || 'rol?'}`;
+          document.querySelector('.nav').appendChild(badge);
+          return true;
+        }
+
+        B.el('btnLogout').onclick = () => {
+          B.clearToken(TOKEN_KEY);
+          const next = encodeURIComponent(location.pathname + location.search);
+          location.href = `/login.html?next=${next}`;
+        };
 
         const PROVINCES = [
           'panamá',
@@ -317,9 +345,11 @@
         }
       });
 
-      // Autoload
-      loadVacancies().catch(() => {});
-      renderChatStats(null);
+      // Autoload (solo si hay token)
+      if (ensureAuth()) {
+        loadVacancies().catch(() => {});
+        renderChatStats(null);
+      }
       })();
     </script>
   </body>
