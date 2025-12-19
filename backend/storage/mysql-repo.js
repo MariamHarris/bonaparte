@@ -225,6 +225,15 @@ async function listInvoices() {
   return rows.map(mapInvoiceRow);
 }
 
+async function listInvoicesByCompany(companyId) {
+  const pool = requirePool();
+  const [rows] = await pool.query(
+    'SELECT * FROM invoices WHERE company_id=? ORDER BY created_at DESC',
+    [companyId],
+  );
+  return rows.map(mapInvoiceRow);
+}
+
 async function getInvoiceById(id) {
   const pool = requirePool();
   const [rows] = await pool.query('SELECT * FROM invoices WHERE id=? LIMIT 1', [id]);
@@ -449,6 +458,7 @@ module.exports = {
   countInteractionsForCompany,
   createInvoice,
   listInvoices,
+  listInvoicesByCompany,
   getInvoiceById,
   upsertInvoiceFile,
   getInvoiceFile,

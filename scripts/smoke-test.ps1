@@ -77,4 +77,17 @@ if (-not $invoice.file.publicUrl) {
 }
 Write-Host "Factura URL: $($invoice.file.publicUrl)"
 
+Write-Host "`n8) Empresa: listar mis facturas"
+$myInvoices = Invoke-RestMethod -Method Get -Uri "$base/api/invoices/my" -Headers @{ 'Authorization' = "Bearer $empresaToken" }
+$myInvoices | ConvertTo-Json -Depth 6
+
+if ($myInvoices.Count -lt 1) {
+  throw 'Empresa no obtuvo facturas en /api/invoices/my'
+}
+
+Write-Host "`n9) Empresa: ver detalle de mi factura"
+$myInvoiceId = $invoice.invoice.id
+$myInvoiceDetail = Invoke-RestMethod -Method Get -Uri "$base/api/invoices/$myInvoiceId/my" -Headers @{ 'Authorization' = "Bearer $empresaToken" }
+$myInvoiceDetail | ConvertTo-Json -Depth 7
+
 Write-Host "`nOK: Smoke test completado."

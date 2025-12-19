@@ -1,9 +1,10 @@
 const express = require('express');
-const { requireConsultora } = require('../middleware/auth');
+const { authenticate, requireConsultora } = require('../middleware/auth');
 const {
   countInteractionsForCompany,
   createInvoice,
   listInvoices,
+  listInvoicesByCompany,
   getInvoiceById,
   getCompanyById,
   upsertInvoiceFile,
@@ -78,10 +79,71 @@ router.get('/', requireConsultora, async (req, res, next) => {
   }
 });
 
+// Empresa: listado de sus propias facturas
+router.get('/my', authenticate, async (req, res, next) => {
+  try {
+    if (!req.user || req.user.role !== 'empresa') {
+      return res.status(403).json({ error: 'Acceso solo para empresa' });
+    }
+    if (!req.user.companyId) {
+      return res.status(400).json({ error: 'Empresa no asociada al usuario' });
+    }
+
+    const items = await listInvoicesByCompany(req.user.companyId);
+    const base = process.env.INVOICES_PUBLIC_BASE || 'http://localhost:8080';
+
+    // Adjuntamos publicUrl si existe archivo
+    const withFiles = await Promise.all(
+      items.map(async (inv) => {
+        const file = await getInvoiceFile(inv.id);
+        return {
+          ...inv,
+          file: file
+            ? { ...file, publicUrl: `${base.replace(/\/$/, '')}/${file.relativePath}` }
+            : null,
+        };
+      }),
+    );
+
+    res.json(withFiles);
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.get('/:id', requireConsultora, async (req, res, next) => {
   try {
     const invoice = await getInvoiceById(req.params.id);
     if (!invoice) return res.status(404).json({ error: 'Factura no encontrada' });
+    const file = await getInvoiceFile(invoice.id);
+    const base = process.env.INVOICES_PUBLIC_BASE || 'http://localhost:8080';
+    res.json({
+      ...invoice,
+      file: file
+        ? { ...file, publicUrl: `${base.replace(/\/$/, '')}/${file.relativePath}` }
+        : null,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Empresa: ver detalle de una factura (solo si es de su empresa)
+router.get('/:id/my', authenticate, async (req, res, next) => {
+  try {
+    if (!req.user || req.user.role !== 'empresa') {
+      return res.status(403).json({ error: 'Acceso solo para empresa' });
+    }
+    if (!req.user.companyId) {
+      return res.status(400).json({ error: 'Empresa no asociada al usuario' });
+    }
+
+    const invoice = await getInvoiceById(req.params.id);
+    if (!invoice) return res.status(404).json({ error: 'Factura no encontrada' });
+    if (invoice.companyId !== req.user.companyId) {
+      return res.status(403).json({ error: 'Acceso denegado' });
+    }
+
     const file = await getInvoiceFile(invoice.id);
     const base = process.env.INVOICES_PUBLIC_BASE || 'http://localhost:8080';
     res.json({
