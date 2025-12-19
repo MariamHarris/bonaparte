@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Bonaparte - Público</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header>
+      <div class="container">
+        <div class="nav">
+          <a href="/">Público</a>
+          <a href="/empresa.html">Empresa</a>
+          <a href="/consultora.html">Consultora</a>
+          <span class="badge">UI: 8080</span>
+        </div>
+      </div>
+    </header>
+
+    <main class="container">
+      <div class="row">
+        <section class="card">
+          <h2>Vacantes</h2>
+          <div class="small muted">Lista pública. Al abrir una vacante se registra una interacción (acceso).</div>
+
+          <div class="inline" style="margin-top: 10px;">
+            <button id="btnLoad" class="fit">Cargar vacantes</button>
+            <button id="btnClear" class="secondary fit">Limpiar</button>
+          </div>
+
+          <div id="vacancies" class="list" style="margin-top: 12px;"></div>
+        </section>
+
+        <section class="card">
+          <h2>Chatbot</h2>
+          <div class="small muted">Guía de dudas. Si hay una vacante seleccionada, registra interacción por chat.</div>
+
+          <label>Vacante seleccionada</label>
+          <div id="selectedVacancy" class="small">(ninguna)</div>
+
+          <label>Mensaje</label>
+          <input id="chatMessage" placeholder="Ej: ¿Qué es el peaje y cómo se factura?" />
+
+          <div class="inline" style="margin-top: 10px;">
+            <button id="btnAsk" class="fit">Preguntar</button>
+            <button id="btnAskHelp" class="secondary fit">Ayuda</button>
+          </div>
+
+          <h3 style="margin-top: 14px;">Respuesta</h3>
+          <pre id="chatOut">(sin respuesta)</pre>
+        </section>
+      </div>
+
+      <section class="card">
+        <h2>Detalle de vacante</h2>
+        <div class="small muted">Se llena cuando haces click en una vacante.</div>
+        <pre id="vacancyOut">(sin selección)</pre>
+      </section>
+    </main>
+
+    <script src="/app.js"></script>
+    <script>
+      const { apiFetch, el, showJson } = window.Bonaparte;
+
+      let selectedVacancyId = null;
+      let selectedVacancyTitle = null;
+
+      function setSelectedVacancy(v) {
+        selectedVacancyId = v ? v.id : null;
+        selectedVacancyTitle = v ? v.title : null;
+        el('selectedVacancy').textContent = selectedVacancyId
+          ? `${selectedVacancyTitle} (${selectedVacancyId})`
+          : '(ninguna)';
+      }
+
+      async function loadVacancies() {
+        const items = await apiFetch('/api/vacancies');
+        const container = el('vacancies');
+        container.innerHTML = '';
+
+        if (!items.length) {
+          container.innerHTML = '<div class="small muted">No hay vacantes aún.</div>';
+          return;
+        }
+
+        items.forEach((v) => {
+          const div = document.createElement('div');
+          div.className = 'card';
+          div.style.margin = '0';
+          div.innerHTML = `
+            <div class="item-title">${v.title}</div>
+            <div class="small muted">${v.location || ''} ${v.status ? '• ' + v.status : ''}</div>
+            <div class="small">companyId: ${v.companyId}</div>
+            <div class="inline" style="margin-top: 10px;">
+              <button class="fit">Abrir</button>
+              <button class="secondary fit">Seleccionar para Chatbot</button>
+            </div>
+          `;
+
+          const [btnOpen, btnSelect] = div.querySelectorAll('button');
+
+          btnOpen.onclick = async () => {
+            const detail = await apiFetch(`/api/vacancies/${v.id}`);
+            showJson(el('vacancyOut'), detail);
+            setSelectedVacancy({ id: v.id, title: v.title });
+          };
+
+          btnSelect.onclick = () => {
+            setSelectedVacancy({ id: v.id, title: v.title });
+          };
+
+          container.appendChild(div);
+        });
+      }
+
+      async function askChat(message) {
+        const payload = {
+          message,
+          vacancyId: selectedVacancyId,
+        };
+        const data = await apiFetch('/api/chatbot/ask', { method: 'POST', body: payload });
+        showJson(el('chatOut'), data);
+      }
+
+      el('btnLoad').onclick = () => loadVacancies().catch((e) => alert(e.message));
+      el('btnClear').onclick = () => {
+        el('vacancies').innerHTML = '';
+        el('vacancyOut').textContent = '(sin selección)';
+        el('chatOut').textContent = '(sin respuesta)';
+        setSelectedVacancy(null);
+      };
+
+      el('btnAsk').onclick = () => {
+        const msg = el('chatMessage').value;
+        askChat(msg).catch((e) => alert(e.message));
+      };
+
+      el('btnAskHelp').onclick = () => {
+        el('chatMessage').value = 'Ayuda';
+        askChat('Ayuda').catch((e) => alert(e.message));
+      };
+
+      // Autoload
+      loadVacancies().catch(() => {});
+    </script>
+  </body>
+</html>

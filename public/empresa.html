@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Bonaparte - Empresa</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header>
+      <div class="container">
+        <div class="nav">
+          <a href="/">Público</a>
+          <a href="/empresa.html">Empresa</a>
+          <a href="/consultora.html">Consultora</a>
+          <span class="badge">UI: 8080</span>
+        </div>
+      </div>
+    </header>
+
+    <main class="container">
+      <section class="card">
+        <h2>Empresa: acceso</h2>
+        <div class="row">
+          <div>
+            <h3>Login</h3>
+            <label>Username</label>
+            <input id="loginUser" placeholder="empresa_demo" />
+            <label>Password</label>
+            <input id="loginPass" type="password" placeholder="demo123" />
+            <div class="inline" style="margin-top:10px;">
+              <button id="btnLogin" class="fit">Entrar</button>
+              <button id="btnLogout" class="secondary fit">Salir</button>
+            </div>
+            <div class="small muted" style="margin-top:10px;">Token guardado en LocalStorage (solo demo).</div>
+          </div>
+
+          <div>
+            <h3>Registro (Empresa + Compañía)</h3>
+            <label>Username</label>
+            <input id="regUser" placeholder="empresa_nueva" />
+            <label>Password</label>
+            <input id="regPass" type="password" placeholder="demo123" />
+
+            <label>Nombre empresa</label>
+            <input id="regName" placeholder="Empresa Demo" />
+            <label>Tipo</label>
+            <select id="regType">
+              <option value="private">Privada</option>
+              <option value="public">Pública</option>
+            </select>
+            <label>Email</label>
+            <input id="regEmail" placeholder="demo@empresa.com" />
+            <label>Teléfono</label>
+            <input id="regPhone" placeholder="0000-0000" />
+            <label>Dirección</label>
+            <input id="regAddress" placeholder="Chiriquí" />
+
+            <button id="btnRegister" style="margin-top:10px;">Crear cuenta</button>
+          </div>
+        </div>
+
+        <hr />
+        <div class="small muted">Estado actual:</div>
+        <pre id="authOut">(sin sesión)</pre>
+      </section>
+
+      <section class="card">
+        <h2>Contrato digital</h2>
+        <div class="small muted">Debe ser aceptado por la empresa. (Prototipo)</div>
+        <div class="inline" style="margin-top:10px;">
+          <button id="btnLoadContract" class="fit">Ver contrato</button>
+          <button id="btnAcceptContract" class="secondary fit">Aceptar contrato</button>
+        </div>
+        <pre id="contractOut">(sin datos)</pre>
+      </section>
+
+      <section class="card">
+        <h2>Vacantes (CRUD)</h2>
+        <div class="row">
+          <div>
+            <h3>Crear vacante</h3>
+            <label>Título</label>
+            <input id="vacTitle" placeholder="Vacante Demo" />
+            <label>Descripción</label>
+            <textarea id="vacDesc" placeholder="Descripción..."></textarea>
+            <label>Ubicación</label>
+            <input id="vacLoc" placeholder="Chiriquí" />
+            <label>Salario</label>
+            <input id="vacSalary" placeholder="N/A" />
+            <label>Estado</label>
+            <select id="vacStatus">
+              <option value="open">open</option>
+              <option value="closed">closed</option>
+            </select>
+            <button id="btnCreateVac" style="margin-top:10px;">Crear</button>
+          </div>
+          <div>
+            <h3>Mis vacantes</h3>
+            <div class="inline" style="margin-top:10px;">
+              <button id="btnLoadVac" class="fit">Cargar</button>
+              <button id="btnClearVac" class="secondary fit">Limpiar</button>
+            </div>
+            <div id="vacList" class="list" style="margin-top:12px;"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Mis facturas</h2>
+        <div class="small muted">Listado solo lectura (filtrado por mi empresa).</div>
+        <div class="inline" style="margin-top:10px;">
+          <button id="btnLoadInvoices" class="fit">Cargar facturas</button>
+          <button id="btnClearInvoices" class="secondary fit">Limpiar</button>
+        </div>
+        <div id="invoiceList" class="list" style="margin-top:12px;"></div>
+      </section>
+    </main>
+
+    <script src="/app.js"></script>
+    <script>
+      const { apiFetch, setToken, getToken, clearToken, decodeJwt, el, showJson } = window.Bonaparte;
+      const TOKEN_KEY = 'bonaparte_empresa_token';
+
+      function token() {
+        return getToken(TOKEN_KEY);
+      }
+
+      function companyIdFromToken() {
+        const t = token();
+        if (!t) return null;
+        const payload = decodeJwt(t);
+        return payload && payload.companyId ? payload.companyId : null;
+      }
+
+      function refreshAuthOut(extra) {
+        const payload = token() ? decodeJwt(token()) : null;
+        showJson(el('authOut'), {
+          loggedIn: Boolean(token()),
+          payload,
+          ...extra,
+        });
+      }
+
+      async function login() {
+        const data = await apiFetch('/api/auth/login', {
+          method: 'POST',
+          body: { username: el('loginUser').value, password: el('loginPass').value },
+        });
+        setToken(TOKEN_KEY, data.token);
+        refreshAuthOut({ role: data.role });
+      }
+
+      async function registerCompany() {
+        const data = await apiFetch('/api/auth/register/company', {
+          method: 'POST',
+          body: {
+            username: el('regUser').value,
+            password: el('regPass').value,
+            company: {
+              name: el('regName').value,
+              type: el('regType').value,
+              email: el('regEmail').value,
+              phone: el('regPhone').value,
+              address: el('regAddress').value,
+            },
+          },
+        });
+        setToken(TOKEN_KEY, data.token);
+        refreshAuthOut({ registered: true, company: data.company });
+      }
+
+      async function loadContract() {
+        const cid = companyIdFromToken();
+        if (!cid) throw new Error('No hay companyId (inicia sesión)');
+        const data = await apiFetch(`/api/companies/${cid}/contract`, { token: token() });
+        showJson(el('contractOut'), data);
+      }
+
+      async function acceptContract() {
+        const cid = companyIdFromToken();
+        if (!cid) throw new Error('No hay companyId (inicia sesión)');
+        const data = await apiFetch(`/api/companies/${cid}/contract/accept`, {
+          method: 'POST',
+          token: token(),
+          body: {},
+        });
+        showJson(el('contractOut'), data);
+      }
+
+      async function createVacancy() {
+        const cid = companyIdFromToken();
+        if (!cid) throw new Error('No hay companyId (inicia sesión)');
+        const data = await apiFetch('/api/vacancies', {
+          method: 'POST',
+          token: token(),
+          body: {
+            companyId: cid,
+            title: el('vacTitle').value,
+            description: el('vacDesc').value,
+            location: el('vacLoc').value,
+            salary: el('vacSalary').value,
+            status: el('vacStatus').value,
+          },
+        });
+        await loadVacancies();
+        return data;
+      }
+
+      async function loadVacancies() {
+        const cid = companyIdFromToken();
+        if (!cid) throw new Error('No hay companyId (inicia sesión)');
+        const items = await apiFetch(`/api/vacancies?companyId=${encodeURIComponent(cid)}`);
+
+        const container = el('vacList');
+        container.innerHTML = '';
+        if (!items.length) {
+          container.innerHTML = '<div class="small muted">No hay vacantes.</div>';
+          return;
+        }
+
+        items.forEach((v) => {
+          const div = document.createElement('div');
+          div.className = 'card';
+          div.style.margin = '0';
+          div.innerHTML = `
+            <div class="item-title">${v.title}</div>
+            <div class="small muted">${v.status} • ${v.location || ''}</div>
+            <div class="small">id: ${v.id}</div>
+            <div class="inline" style="margin-top:10px;">
+              <button class="secondary fit">Cerrar</button>
+              <button class="secondary fit">Abrir</button>
+              <button class="fit">Eliminar</button>
+            </div>
+          `;
+          const [btnClose, btnOpen, btnDelete] = div.querySelectorAll('button');
+
+          btnClose.onclick = async () => {
+            await apiFetch(`/api/vacancies/${v.id}`, { method: 'PUT', token: token(), body: { status: 'closed' } });
+            await loadVacancies();
+          };
+
+          btnOpen.onclick = async () => {
+            await apiFetch(`/api/vacancies/${v.id}`, { method: 'PUT', token: token(), body: { status: 'open' } });
+            await loadVacancies();
+          };
+
+          btnDelete.onclick = async () => {
+            await apiFetch(`/api/vacancies/${v.id}`, { method: 'DELETE', token: token() });
+            await loadVacancies();
+          };
+
+          container.appendChild(div);
+        });
+      }
+
+      async function loadMyInvoices() {
+        const items = await apiFetch('/api/invoices/my', { token: token() });
+        const container = el('invoiceList');
+        container.innerHTML = '';
+        if (!items.length) {
+          container.innerHTML = '<div class="small muted">No hay facturas aún.</div>';
+          return;
+        }
+
+        items.forEach((inv) => {
+          const div = document.createElement('div');
+          div.className = 'card';
+          div.style.margin = '0';
+          const link = inv.file && inv.file.publicUrl ? `<a href="${inv.file.publicUrl}" target="_blank" rel="noreferrer">Abrir factura HTML</a>` : '(sin archivo)';
+          div.innerHTML = `
+            <div class="item-title">Factura ${inv.id}</div>
+            <div class="small muted">Periodo: ${inv.periodStart} → ${inv.periodEnd}</div>
+            <div class="small">Interacciones: ${inv.interactionsCount} • Total: ${inv.total}</div>
+            <div class="small">${link}</div>
+          `;
+          container.appendChild(div);
+        });
+      }
+
+      el('btnLogin').onclick = () => login().catch((e) => alert(e.message));
+      el('btnLogout').onclick = () => {
+        clearToken(TOKEN_KEY);
+        refreshAuthOut({ loggedOut: true });
+      };
+      el('btnRegister').onclick = () => registerCompany().catch((e) => alert(e.message));
+
+      el('btnLoadContract').onclick = () => loadContract().catch((e) => alert(e.message));
+      el('btnAcceptContract').onclick = () => acceptContract().catch((e) => alert(e.message));
+
+      el('btnCreateVac').onclick = () => createVacancy().catch((e) => alert(e.message));
+      el('btnLoadVac').onclick = () => loadVacancies().catch((e) => alert(e.message));
+      el('btnClearVac').onclick = () => (el('vacList').innerHTML = '');
+
+      el('btnLoadInvoices').onclick = () => loadMyInvoices().catch((e) => alert(e.message));
+      el('btnClearInvoices').onclick = () => (el('invoiceList').innerHTML = '');
+
+      refreshAuthOut();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Bonaparte - Consultora</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header>
+      <div class="container">
+        <div class="nav">
+          <a href="/">Público</a>
+          <a href="/empresa.html">Empresa</a>
+          <a href="/consultora.html">Consultora</a>
+          <span class="badge">UI: 8080</span>
+        </div>
+      </div>
+    </header>
+
+    <main class="container">
+      <section class="card">
+        <h2>Consultora: acceso</h2>
+        <div class="row">
+          <div>
+            <h3>Login</h3>
+            <label>Username</label>
+            <input id="loginUser" placeholder="consultora_demo" />
+            <label>Password</label>
+            <input id="loginPass" type="password" placeholder="demo123" />
+            <div class="inline" style="margin-top:10px;">
+              <button id="btnLogin" class="fit">Entrar</button>
+              <button id="btnLogout" class="secondary fit">Salir</button>
+            </div>
+            <div class="small muted" style="margin-top:10px;">Token guardado en LocalStorage (solo demo).</div>
+          </div>
+
+          <div>
+            <h3>Registro (Consultora)</h3>
+            <label>Username</label>
+            <input id="regUser" placeholder="consultora_nueva" />
+            <label>Password</label>
+            <input id="regPass" type="password" placeholder="demo123" />
+            <button id="btnRegister" style="margin-top:10px;">Crear cuenta</button>
+          </div>
+        </div>
+
+        <hr />
+        <div class="small muted">Estado actual:</div>
+        <pre id="authOut">(sin sesión)</pre>
+      </section>
+
+      <section class="card">
+        <h2>Estadísticas</h2>
+        <div class="row">
+          <div>
+            <h3>Por empresa</h3>
+            <label>Company ID</label>
+            <input id="statsCompanyId" placeholder="(pega un companyId)" />
+            <button id="btnLoadStatsCompany" style="margin-top:10px;">Cargar stats</button>
+          </div>
+          <div>
+            <h3>Por vacante</h3>
+            <label>Vacancy ID</label>
+            <input id="statsVacancyId" placeholder="(pega un vacancyId)" />
+            <button id="btnLoadStatsVacancy" style="margin-top:10px;">Cargar stats</button>
+          </div>
+        </div>
+        <pre id="statsOut">(sin datos)</pre>
+      </section>
+
+      <section class="card">
+        <h2>Generar factura (DGI emulada)</h2>
+        <div class="row">
+          <div>
+            <h3>Parámetros</h3>
+            <label>Company ID</label>
+            <input id="invCompanyId" placeholder="(companyId)" />
+            <label>Periodo inicio (ISO)</label>
+            <input id="invStart" placeholder="2025-01-01T00:00:00.000Z" />
+            <label>Periodo fin (ISO)</label>
+            <input id="invEnd" placeholder="2025-12-31T23:59:59.000Z" />
+            <label>Peaje por interacción</label>
+            <input id="invToll" placeholder="0.25" />
+            <button id="btnGenerate" style="margin-top:10px;">Generar</button>
+            <div class="small muted" style="margin-top:10px;">Se genera HTML y se publica por Nginx.</div>
+          </div>
+          <div>
+            <h3>Facturas (Consultora)</h3>
+            <div class="inline" style="margin-top:10px;">
+              <button id="btnLoadInvoices" class="fit">Cargar</button>
+              <button id="btnClearInvoices" class="secondary fit">Limpiar</button>
+            </div>
+            <div id="invoiceList" class="list" style="margin-top:12px;"></div>
+          </div>
+        </div>
+        <pre id="genOut">(sin datos)</pre>
+      </section>
+    </main>
+
+    <script src="/app.js"></script>
+    <script>
+      const { apiFetch, setToken, getToken, clearToken, decodeJwt, el, showJson } = window.Bonaparte;
+      const TOKEN_KEY = 'bonaparte_consultora_token';
+
+      function token() {
+        return getToken(TOKEN_KEY);
+      }
+
+      function refreshAuthOut(extra) {
+        const payload = token() ? decodeJwt(token()) : null;
+        showJson(el('authOut'), {
+          loggedIn: Boolean(token()),
+          payload,
+          ...extra,
+        });
+      }
+
+      async function login() {
+        const data = await apiFetch('/api/auth/login', {
+          method: 'POST',
+          body: { username: el('loginUser').value, password: el('loginPass').value },
+        });
+        setToken(TOKEN_KEY, data.token);
+        refreshAuthOut({ role: data.role });
+      }
+
+      async function registerConsultora() {
+        const data = await apiFetch('/api/auth/register/consultora', {
+          method: 'POST',
+          body: { username: el('regUser').value, password: el('regPass').value },
+        });
+        setToken(TOKEN_KEY, data.token);
+        refreshAuthOut({ registered: true });
+      }
+
+      async function loadStatsCompany() {
+        const companyId = el('statsCompanyId').value;
+        if (!companyId) throw new Error('Ingresa companyId');
+        const data = await apiFetch(`/api/stats/consultora?companyId=${encodeURIComponent(companyId)}`, { token: token() });
+        showJson(el('statsOut'), data);
+      }
+
+      async function loadStatsVacancy() {
+        const vacancyId = el('statsVacancyId').value;
+        if (!vacancyId) throw new Error('Ingresa vacancyId');
+        const data = await apiFetch(`/api/stats/consultora?vacancyId=${encodeURIComponent(vacancyId)}`, { token: token() });
+        showJson(el('statsOut'), data);
+      }
+
+      async function generateInvoice() {
+        const companyId = el('invCompanyId').value;
+        if (!companyId) throw new Error('Ingresa companyId');
+        const body = {
+          companyId,
+          periodStart: el('invStart').value,
+          periodEnd: el('invEnd').value,
+          tollPerInteraction: Number(el('invToll').value || '0.25'),
+        };
+        const data = await apiFetch('/api/invoices/generate', { method: 'POST', token: token(), body });
+        showJson(el('genOut'), data);
+        await loadInvoices();
+      }
+
+      async function loadInvoices() {
+        const items = await apiFetch('/api/invoices', { token: token() });
+        const container = el('invoiceList');
+        container.innerHTML = '';
+        if (!items.length) {
+          container.innerHTML = '<div class="small muted">No hay facturas aún.</div>';
+          return;
+        }
+
+        items.forEach((inv) => {
+          const div = document.createElement('div');
+          div.className = 'card';
+          div.style.margin = '0';
+          const link = inv.file && inv.file.publicUrl ? `<a href="${inv.file.publicUrl}" target="_blank" rel="noreferrer">Abrir factura HTML</a>` : '(sin archivo)';
+          div.innerHTML = `
+            <div class="item-title">Factura ${inv.id}</div>
+            <div class="small muted">Company: ${inv.companyId}</div>
+            <div class="small muted">Periodo: ${inv.periodStart} → ${inv.periodEnd}</div>
+            <div class="small">Interacciones: ${inv.interactionsCount} • Total: ${inv.total}</div>
+            <div class="small">${link}</div>
+          `;
+          container.appendChild(div);
+        });
+      }
+
+      el('btnLogin').onclick = () => login().catch((e) => alert(e.message));
+      el('btnLogout').onclick = () => {
+        clearToken(TOKEN_KEY);
+        refreshAuthOut({ loggedOut: true });
+      };
+      el('btnRegister').onclick = () => registerConsultora().catch((e) => alert(e.message));
+
+      el('btnLoadStatsCompany').onclick = () => loadStatsCompany().catch((e) => alert(e.message));
+      el('btnLoadStatsVacancy').onclick = () => loadStatsVacancy().catch((e) => alert(e.message));
+
+      el('btnGenerate').onclick = () => generateInvoice().catch((e) => alert(e.message));
+      el('btnLoadInvoices').onclick = () => loadInvoices().catch((e) => alert(e.message));
+      el('btnClearInvoices').onclick = () => (el('invoiceList').innerHTML = '');
+
+      // defaults
+      el('invStart').value = el('invStart').value || '2025-01-01T00:00:00.000Z';
+      el('invEnd').value = el('invEnd').value || '2025-12-31T23:59:59.000Z';
+      el('invToll').value = el('invToll').value || '0.25';
+
+      refreshAuthOut();
+    </script>
+  </body>
+</html>

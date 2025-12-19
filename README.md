@@ -10,6 +10,17 @@ Este proyecto es un prototipo de sitio web para la gestión de vacantes de empre
 - `/docker` - Archivos para despliegue y orquestación (Docker)
 - `/docs` - Documentación y diagramas
 
+## Sitio Web (Frontend estático - MVP)
+Este repo incluye un **frontend mínimo** (HTML + JS) en `/public`, servido por **Nginx** (Docker) en:
+
+- Público: `http://localhost:8080/`
+- Empresa: `http://localhost:8080/empresa.html`
+- Consultora: `http://localhost:8080/consultora.html`
+
+Notas:
+- El frontend consume el API en `http://127.0.0.1:3001` (ver `/public/app.js`).
+- Las facturas HTML también se publican por el mismo Nginx bajo `/invoices/`.
+
 ## Módulos Principales
 - Empresas (públicas y privadas)
 - Empresa Consultora
@@ -30,7 +41,7 @@ Este proyecto es un prototipo de sitio web para la gestión de vacantes de empre
 Esto levanta:
 - MongoDB (27017)
 - MySQL (3306)
-- Nginx para facturas HTML (8080)
+- Nginx para frontend + facturas HTML (8080)
 
 **Opción B: instalación local (sin Docker)**
 - Instala MongoDB (puerto 27017) y MySQL (puerto 3306) en tu máquina.
