@@ -2,6 +2,8 @@
 <html lang="es">
   <head>
     <meta charset="utf-8" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta http-equiv="Content-Language" content="es" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Bonaparte - Consultora</title>
     <link rel="stylesheet" href="/styles.css" />
@@ -10,6 +12,7 @@
     <header>
       <div class="container">
         <div class="nav">
+          <span class="brand">Bonaparte</span>
           <a href="/">Público</a>
           <a href="/empresa.html">Empresa</a>
           <a href="/consultora.html">Consultora</a>
@@ -19,6 +22,10 @@
     </header>
 
     <main class="container">
+      <div class="hero">
+        <h1>Panel Consultora</h1>
+        <p>Gestiona empresas, estadísticas e invoicing del peaje por interacción con un panel claro y protegido.</p>
+      </div>
       <section class="card">
         <h2>Consultora: acceso</h2>
         <div class="row">
@@ -51,6 +58,25 @@
       </section>
 
       <section class="card">
+        <h2>Empresa consultora</h2>
+        <div class="small muted">Datos de referencia y rol en el peaje/facturación (solo informativo en el prototipo).</div>
+        <ul class="small">
+          <li>Razón social de ejemplo: Consultores Chiriquí, S.A.</li>
+          <li>Rol: administra peaje por interacciones y emite factura emulada DGI.</li>
+          <li>Acceso sólo con usuario/contraseña de consultora (JWT).</li>
+        </ul>
+      </section>
+
+      <section class="card">
+        <h2>Empresas registradas</h2>
+        <div class="inline" style="margin-top:10px;">
+          <button id="btnLoadCompanies" class="fit">Cargar empresas</button>
+          <button id="btnClearCompanies" class="secondary fit">Limpiar</button>
+        </div>
+        <div id="companiesList" class="list" style="margin-top:12px;"></div>
+      </section>
+
+      <section class="card">
         <h2>Estadísticas</h2>
         <div class="row">
           <div>
@@ -67,6 +93,21 @@
           </div>
         </div>
         <pre id="statsOut">(sin datos)</pre>
+      </section>
+
+      <section class="card">
+        <h2>Chatbot (vista consultora)</h2>
+        <div class="small muted">Consulta mensajes como consultora. Si incluyes vacancyId se registrará interacción para esa vacante.</div>
+        <label>Mensaje</label>
+        <input id="chatMessageConsultora" placeholder="Ej: ¿Cuántas interacciones cuentan para peaje?" />
+        <label>Vacancy ID (opcional)</label>
+        <input id="chatVacancyIdConsultora" placeholder="(pega un vacancyId si quieres asociar)" />
+        <div class="inline" style="margin-top:10px;">
+          <button id="btnAskConsultora" class="fit">Preguntar</button>
+          <button id="btnAskConsultoraHelp" class="secondary fit">Ayuda</button>
+        </div>
+        <h3 style="margin-top:14px;">Respuesta</h3>
+        <pre id="chatOutConsultora">(sin respuesta)</pre>
       </section>
 
       <section class="card">
@@ -98,18 +139,23 @@
       </section>
     </main>
 
-    <script src="/app.js"></script>
+    <script src="/app.js?v=1"></script>
     <script>
-      const { apiFetch, setToken, getToken, clearToken, decodeJwt, el, showJson } = window.Bonaparte;
-      const TOKEN_KEY = 'bonaparte_consultora_token';
+      (() => {
+        if (!window.Bonaparte) {
+          alert('No cargó /app.js (JavaScript). Abre la web desde http://localhost:8080/ y revisa la consola (F12).');
+          throw new Error('Bonaparte frontend: window.Bonaparte not found');
+        }
+        const B = window.Bonaparte;
+        const TOKEN_KEY = 'bonaparte_consultora_token';
 
       function token() {
-        return getToken(TOKEN_KEY);
+        return B.getToken(TOKEN_KEY);
       }
 
       function refreshAuthOut(extra) {
-        const payload = token() ? decodeJwt(token()) : null;
-        showJson(el('authOut'), {
+        const payload = token() ? B.decodeJwt(token()) : null;
+        B.showJson(B.el('authOut'), {
           loggedIn: Boolean(token()),
           payload,
           ...extra,
@@ -117,54 +163,59 @@
       }
 
       async function login() {
-        const data = await apiFetch('/api/auth/login', {
+        const data = await B.apiFetch('/api/auth/login', {
           method: 'POST',
-          body: { username: el('loginUser').value, password: el('loginPass').value },
+          body: { username: B.el('loginUser').value, password: B.el('loginPass').value },
         });
-        setToken(TOKEN_KEY, data.token);
+        B.setToken(TOKEN_KEY, data.token);
         refreshAuthOut({ role: data.role });
+        B.toast('Sesión consultora iniciada', 'success');
       }
 
       async function registerConsultora() {
-        const data = await apiFetch('/api/auth/register/consultora', {
+        const data = await B.apiFetch('/api/auth/register/consultora', {
           method: 'POST',
-          body: { username: el('regUser').value, password: el('regPass').value },
+          body: { username: B.el('regUser').value, password: B.el('regPass').value },
         });
-        setToken(TOKEN_KEY, data.token);
+        B.setToken(TOKEN_KEY, data.token);
         refreshAuthOut({ registered: true });
+        B.toast('Consultora registrada', 'success');
       }
 
       async function loadStatsCompany() {
-        const companyId = el('statsCompanyId').value;
+        const companyId = B.el('statsCompanyId').value;
         if (!companyId) throw new Error('Ingresa companyId');
-        const data = await apiFetch(`/api/stats/consultora?companyId=${encodeURIComponent(companyId)}`, { token: token() });
-        showJson(el('statsOut'), data);
+        const data = await B.apiFetch(`/api/stats/consultora?companyId=${encodeURIComponent(companyId)}`, { token: token() });
+        B.showJson(B.el('statsOut'), data);
+        B.toast('Stats empresa cargadas', 'info');
       }
 
       async function loadStatsVacancy() {
-        const vacancyId = el('statsVacancyId').value;
+        const vacancyId = B.el('statsVacancyId').value;
         if (!vacancyId) throw new Error('Ingresa vacancyId');
-        const data = await apiFetch(`/api/stats/consultora?vacancyId=${encodeURIComponent(vacancyId)}`, { token: token() });
-        showJson(el('statsOut'), data);
+        const data = await B.apiFetch(`/api/stats/consultora?vacancyId=${encodeURIComponent(vacancyId)}`, { token: token() });
+        B.showJson(B.el('statsOut'), data);
+        B.toast('Stats vacante cargadas', 'info');
       }
 
       async function generateInvoice() {
-        const companyId = el('invCompanyId').value;
+        const companyId = B.el('invCompanyId').value;
         if (!companyId) throw new Error('Ingresa companyId');
         const body = {
           companyId,
-          periodStart: el('invStart').value,
-          periodEnd: el('invEnd').value,
-          tollPerInteraction: Number(el('invToll').value || '0.25'),
+          periodStart: B.el('invStart').value,
+          periodEnd: B.el('invEnd').value,
+          tollPerInteraction: Number(B.el('invToll').value || '0.25'),
         };
-        const data = await apiFetch('/api/invoices/generate', { method: 'POST', token: token(), body });
-        showJson(el('genOut'), data);
+        const data = await B.apiFetch('/api/invoices/generate', { method: 'POST', token: token(), body });
+        B.showJson(B.el('genOut'), data);
         await loadInvoices();
+        B.toast('Factura generada', 'success');
       }
 
       async function loadInvoices() {
-        const items = await apiFetch('/api/invoices', { token: token() });
-        const container = el('invoiceList');
+        const items = await B.apiFetch('/api/invoices', { token: token() });
+        const container = B.el('invoiceList');
         container.innerHTML = '';
         if (!items.length) {
           container.innerHTML = '<div class="small muted">No hay facturas aún.</div>';
@@ -187,26 +238,93 @@
         });
       }
 
-      el('btnLogin').onclick = () => login().catch((e) => alert(e.message));
-      el('btnLogout').onclick = () => {
-        clearToken(TOKEN_KEY);
+      async function askChatConsultora(message, vacancyId) {
+        const payload = { message, vacancyId: vacancyId || undefined };
+        const data = await B.apiFetch('/api/chatbot/ask', { method: 'POST', body: payload, token: token() });
+        B.showJson(B.el('chatOutConsultora'), data);
+        B.toast('Respuesta del chatbot recibida', 'info');
+      }
+
+      B.el('btnLogin').onclick = () => B.withButton(B.el('btnLogin'), async () => {
+        try { await login(); } catch (e) { B.toast(e.message || 'Error al iniciar sesión', 'error'); }
+      });
+      B.el('btnLogout').onclick = () => {
+        B.clearToken(TOKEN_KEY);
         refreshAuthOut({ loggedOut: true });
+        B.toast('Sesión cerrada');
       };
-      el('btnRegister').onclick = () => registerConsultora().catch((e) => alert(e.message));
+      B.el('btnRegister').onclick = () => B.withButton(B.el('btnRegister'), async () => {
+        try { await registerConsultora(); } catch (e) { B.toast(e.message || 'Error al registrar', 'error'); }
+      });
 
-      el('btnLoadStatsCompany').onclick = () => loadStatsCompany().catch((e) => alert(e.message));
-      el('btnLoadStatsVacancy').onclick = () => loadStatsVacancy().catch((e) => alert(e.message));
+      B.el('btnLoadStatsCompany').onclick = () => B.withButton(B.el('btnLoadStatsCompany'), async () => {
+        try { await loadStatsCompany(); } catch (e) { B.toast(e.message || 'Error al cargar stats', 'error'); }
+      });
+      B.el('btnLoadStatsVacancy').onclick = () => B.withButton(B.el('btnLoadStatsVacancy'), async () => {
+        try { await loadStatsVacancy(); } catch (e) { B.toast(e.message || 'Error al cargar stats', 'error'); }
+      });
 
-      el('btnGenerate').onclick = () => generateInvoice().catch((e) => alert(e.message));
-      el('btnLoadInvoices').onclick = () => loadInvoices().catch((e) => alert(e.message));
-      el('btnClearInvoices').onclick = () => (el('invoiceList').innerHTML = '');
+      B.el('btnGenerate').onclick = () => B.withButton(B.el('btnGenerate'), async () => {
+        try { await generateInvoice(); } catch (e) { B.toast(e.message || 'Error al generar factura', 'error'); }
+      });
+      B.el('btnLoadInvoices').onclick = () => B.withButton(B.el('btnLoadInvoices'), async () => {
+        try { await loadInvoices(); } catch (e) { B.toast(e.message || 'Error al cargar facturas', 'error'); }
+      });
+      B.el('btnClearInvoices').onclick = () => (B.el('invoiceList').innerHTML = '');
+      B.el('btnLoadCompanies').onclick = () => B.withButton(B.el('btnLoadCompanies'), async () => {
+        try { await loadCompanies(); } catch (e) { B.toast(e.message || 'Error al cargar empresas', 'error'); }
+      });
+      B.el('btnClearCompanies').onclick = () => (B.el('companiesList').innerHTML = '');
+
+      B.el('btnAskConsultora').onclick = () => B.withButton(B.el('btnAskConsultora'), async () => {
+        try {
+          const msg = B.el('chatMessageConsultora').value;
+          if (!msg) throw new Error('Escribe un mensaje');
+          await askChatConsultora(msg, B.el('chatVacancyIdConsultora').value.trim());
+        } catch (e) {
+          B.toast(e.message || 'Error en chatbot', 'error');
+        }
+      });
+
+      B.el('btnAskConsultoraHelp').onclick = () => B.withButton(B.el('btnAskConsultoraHelp'), async () => {
+        try {
+          B.el('chatMessageConsultora').value = 'Ayuda';
+          await askChatConsultora('Ayuda', B.el('chatVacancyIdConsultora').value.trim());
+        } catch (e) {
+          B.toast(e.message || 'Error en chatbot', 'error');
+        }
+      });
+
+        async function loadCompanies() {
+          const items = await B.apiFetch('/api/companies', { token: token() });
+          const container = B.el('companiesList');
+          container.innerHTML = '';
+
+          if (!items.length) {
+            container.innerHTML = '<div class="small muted">No hay empresas registradas.</div>';
+            return;
+          }
+
+          items.forEach((c) => {
+            const div = document.createElement('div');
+            div.className = 'card';
+            div.style.margin = '0';
+            div.innerHTML = `
+              <div class="item-title">${c.name} (${c.type || 'tipo?'})</div>
+              <div class="small muted">id: ${c.id}</div>
+              <div class="small">Email: ${c.email || 'n/d'} • Tel: ${c.phone || 'n/d'} • Dir: ${c.address || 'n/d'}</div>
+            `;
+            container.appendChild(div);
+          });
+        }
 
       // defaults
-      el('invStart').value = el('invStart').value || '2025-01-01T00:00:00.000Z';
-      el('invEnd').value = el('invEnd').value || '2025-12-31T23:59:59.000Z';
-      el('invToll').value = el('invToll').value || '0.25';
+      B.el('invStart').value = B.el('invStart').value || '2025-01-01T00:00:00.000Z';
+      B.el('invEnd').value = B.el('invEnd').value || '2025-12-31T23:59:59.000Z';
+      B.el('invToll').value = B.el('invToll').value || '0.25';
 
       refreshAuthOut();
+      })();
     </script>
   </body>
 </html>

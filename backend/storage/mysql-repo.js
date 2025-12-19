@@ -27,10 +27,24 @@ async function createCompany(data) {
   const pool = requirePool();
   const id = randomUUID();
   await pool.query(
-    'INSERT INTO companies (id, name, type, email, phone, address) VALUES (?, ?, ?, ?, ?, ?)',
+    `
+      INSERT INTO companies (
+        id, name, commercial_name, legal_name, ruc, dv, nit,
+        province, district, corregimiento,
+        type, email, phone, address
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `,
     [
       id,
       data.name,
+      data.commercialName || data.name || null,
+      data.legalName || data.name || null,
+      data.ruc || null,
+      data.dv || null,
+      data.nit || null,
+      data.province || null,
+      data.district || null,
+      data.corregimiento || null,
       data.type === 'public' ? 'public' : 'private',
       data.email || null,
       data.phone || null,
@@ -52,8 +66,29 @@ async function updateCompany(id, patch) {
   };
 
   await pool.query(
-    'UPDATE companies SET name=?, type=?, email=?, phone=?, address=? WHERE id=?',
-    [next.name, next.type, next.email || null, next.phone || null, next.address || null, id],
+    `
+      UPDATE companies
+        SET name=?, commercial_name=?, legal_name=?, ruc=?, dv=?, nit=?,
+            province=?, district=?, corregimiento=?,
+            type=?, email=?, phone=?, address=?
+      WHERE id=?
+    `,
+    [
+      next.name,
+      next.commercialName || next.name || null,
+      next.legalName || next.name || null,
+      next.ruc || null,
+      next.dv || null,
+      next.nit || null,
+      next.province || null,
+      next.district || null,
+      next.corregimiento || null,
+      next.type,
+      next.email || null,
+      next.phone || null,
+      next.address || null,
+      id,
+    ],
   );
 
   return getCompanyById(id);
@@ -77,6 +112,23 @@ async function getContract(companyId) {
     accepted: Boolean(rows[0].accepted),
     acceptedAt: rows[0].accepted_at ? new Date(rows[0].accepted_at).toISOString() : null,
     tollDescription: rows[0].toll_description,
+    tollUsdPerInteraction: rows[0].toll_usd_per_interaction ? Number(rows[0].toll_usd_per_interaction) : null,
+    interactionDefinition: rows[0].interaction_definition || null,
+    billingTerms: rows[0].billing_terms || null,
+    contractHtml: rows[0].contract_html || null,
+    contractJson: (() => {
+      const raw = rows[0].contract_json;
+      if (!raw) return null;
+      if (typeof raw === 'string') {
+        try {
+          return JSON.parse(raw);
+        } catch (_err) {
+          return null;
+        }
+      }
+      return raw;
+    })(),
+    contractVersion: rows[0].contract_version || null,
     createdAt: rows[0].created_at ? new Date(rows[0].created_at).toISOString() : null,
   };
 }
@@ -154,14 +206,22 @@ async function deleteVacancy(id) {
   return res.affectedRows > 0;
 }
 
-async function recordInteraction({ vacancyId, channel = 'web', event = 'view' }) {
+async function resolveCompanyIdForVacancy(vacancyId, providedCompanyId) {
+  if (providedCompanyId) return providedCompanyId;
+  const pool = requirePool();
+  const [rows] = await pool.query('SELECT company_id FROM vacancies WHERE id=? LIMIT 1', [vacancyId]);
+  return rows[0] ? rows[0].company_id : null;
+}
+
+async function recordInteraction({ vacancyId, companyId, channel = 'web', event = 'view' }) {
   const pool = requirePool();
   const id = randomUUID();
+  const resolvedCompanyId = await resolveCompanyIdForVacancy(vacancyId, companyId);
   await pool.query(
-    'INSERT INTO interactions (id, vacancy_id, channel, event) VALUES (?, ?, ?, ?)',
-    [id, vacancyId, channel, event],
+    'INSERT INTO interactions (id, vacancy_id, company_id, channel, event) VALUES (?, ?, ?, ?, ?)',
+    [id, vacancyId, resolvedCompanyId, channel, event],
   );
-  return { id, vacancyId, channel, event };
+  return { id, vacancyId, companyId: resolvedCompanyId, channel, event };
 }
 
 async function listInteractions({ vacancyId } = {}) {
@@ -173,6 +233,7 @@ async function listInteractions({ vacancyId } = {}) {
   return rows.map((r) => ({
     id: r.id,
     vacancyId: r.vacancy_id,
+    companyId: r.company_id,
     channel: r.channel,
     event: r.event,
     createdAt: r.created_at ? new Date(r.created_at).toISOString() : null,
@@ -185,12 +246,12 @@ async function countInteractionsForCompany({ companyId, start, end }) {
     `
       SELECT COUNT(*) AS cnt
       FROM interactions i
-      JOIN vacancies v ON v.id = i.vacancy_id
-      WHERE v.company_id = ?
+      LEFT JOIN vacancies v ON v.id = i.vacancy_id
+      WHERE (i.company_id = ? OR (i.company_id IS NULL AND v.company_id = ?))
         AND i.created_at >= ?
         AND i.created_at <= ?
     `,
-    [companyId, start, end],
+    [companyId, companyId, start, end],
   );
   return Number(rows[0].cnt || 0);
 }
@@ -198,11 +259,18 @@ async function countInteractionsForCompany({ companyId, start, end }) {
 async function createInvoice(data) {
   const pool = requirePool();
   const id = randomUUID();
+  const subtotal = data.subtotal ?? Number((data.interactionsCount * data.tollPerInteraction).toFixed(2));
+  const itbmsRate = data.itbmsRate ?? 7.0;
+  const itbmsAmount = data.itbmsAmount ?? Number((subtotal * (itbmsRate / 100)).toFixed(2));
+  const grandTotal = data.grandTotal ?? Number((subtotal + itbmsAmount).toFixed(2));
+  const total = data.total ?? grandTotal;
+  const fiscalNumber = data.fiscalNumber || null;
   await pool.query(
     `
       INSERT INTO invoices (
-        id, company_id, period_start, period_end, interactions_count, toll_per_interaction, total, status
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        id, company_id, period_start, period_end, interactions_count, toll_per_interaction,
+        subtotal, itbms_rate, itbms_amount, total, grand_total, fiscal_number, status
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
     [
       id,
@@ -211,7 +279,12 @@ async function createInvoice(data) {
       data.periodEnd,
       data.interactionsCount,
       data.tollPerInteraction,
-      data.total,
+      subtotal,
+      itbmsRate,
+      itbmsAmount,
+      total,
+      grandTotal,
+      fiscalNumber,
       data.status || 'issued',
     ],
   );
@@ -264,54 +337,54 @@ async function getCompanyInteractionStats({ companyId, start, end }) {
     `
       SELECT COUNT(*) AS cnt
       FROM interactions i
-      JOIN vacancies v ON v.id = i.vacancy_id
-      WHERE v.company_id = ?
+      LEFT JOIN vacancies v ON v.id = i.vacancy_id
+      WHERE (i.company_id = ? OR (i.company_id IS NULL AND v.company_id = ?))
         AND i.created_at >= ?
         AND i.created_at <= ?
     `,
-    [companyId, start, end],
+    [companyId, companyId, start, end],
   );
 
   const [byChannelRows] = await pool.query(
     `
       SELECT i.channel, COUNT(*) AS cnt
       FROM interactions i
-      JOIN vacancies v ON v.id = i.vacancy_id
-      WHERE v.company_id = ?
+      LEFT JOIN vacancies v ON v.id = i.vacancy_id
+      WHERE (i.company_id = ? OR (i.company_id IS NULL AND v.company_id = ?))
         AND i.created_at >= ?
         AND i.created_at <= ?
       GROUP BY i.channel
       ORDER BY cnt DESC
     `,
-    [companyId, start, end],
+    [companyId, companyId, start, end],
   );
 
   const [byEventRows] = await pool.query(
     `
       SELECT i.event, COUNT(*) AS cnt
       FROM interactions i
-      JOIN vacancies v ON v.id = i.vacancy_id
-      WHERE v.company_id = ?
+      LEFT JOIN vacancies v ON v.id = i.vacancy_id
+      WHERE (i.company_id = ? OR (i.company_id IS NULL AND v.company_id = ?))
         AND i.created_at >= ?
         AND i.created_at <= ?
       GROUP BY i.event
       ORDER BY cnt DESC
     `,
-    [companyId, start, end],
+    [companyId, companyId, start, end],
   );
 
   const [dailyRows] = await pool.query(
     `
       SELECT DATE(i.created_at) AS day, COUNT(*) AS cnt
       FROM interactions i
-      JOIN vacancies v ON v.id = i.vacancy_id
-      WHERE v.company_id = ?
+      LEFT JOIN vacancies v ON v.id = i.vacancy_id
+      WHERE (i.company_id = ? OR (i.company_id IS NULL AND v.company_id = ?))
         AND i.created_at >= ?
         AND i.created_at <= ?
       GROUP BY DATE(i.created_at)
       ORDER BY day ASC
     `,
-    [companyId, start, end],
+    [companyId, companyId, start, end],
   );
 
   const [topVacanciesRows] = await pool.query(
@@ -319,14 +392,14 @@ async function getCompanyInteractionStats({ companyId, start, end }) {
       SELECT v.id AS vacancy_id, v.title, COUNT(*) AS cnt
       FROM interactions i
       JOIN vacancies v ON v.id = i.vacancy_id
-      WHERE v.company_id = ?
+      WHERE (i.company_id = ? OR (i.company_id IS NULL AND v.company_id = ?))
         AND i.created_at >= ?
         AND i.created_at <= ?
       GROUP BY v.id, v.title
       ORDER BY cnt DESC
       LIMIT 10
     `,
-    [companyId, start, end],
+    [companyId, companyId, start, end],
   );
 
   return {
@@ -403,6 +476,14 @@ function mapCompanyRow(r) {
   return {
     id: r.id,
     name: r.name,
+    commercialName: r.commercial_name,
+    legalName: r.legal_name,
+    ruc: r.ruc,
+    dv: r.dv,
+    nit: r.nit,
+    province: r.province,
+    district: r.district,
+    corregimiento: r.corregimiento,
     type: r.type,
     email: r.email,
     phone: r.phone,
@@ -434,7 +515,12 @@ function mapInvoiceRow(r) {
     periodEnd: r.period_end ? new Date(r.period_end).toISOString() : null,
     interactionsCount: r.interactions_count,
     tollPerInteraction: Number(r.toll_per_interaction),
+    subtotal: Number(r.subtotal ?? r.total ?? 0),
+    itbmsRate: Number(r.itbms_rate ?? 7),
+    itbmsAmount: Number(r.itbms_amount ?? 0),
     total: Number(r.total),
+    grandTotal: Number(r.grand_total ?? r.total ?? 0),
+    fiscalNumber: r.fiscal_number || null,
     status: r.status,
     createdAt: r.created_at ? new Date(r.created_at).toISOString() : null,
   };

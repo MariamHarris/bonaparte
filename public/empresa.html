@@ -10,6 +10,7 @@
     <header>
       <div class="container">
         <div class="nav">
+          <span class="brand">Bonaparte</span>
           <a href="/">Público</a>
           <a href="/empresa.html">Empresa</a>
           <a href="/consultora.html">Consultora</a>
@@ -19,6 +20,10 @@
     </header>
 
     <main class="container">
+      <div class="hero">
+        <h1>Panel de Empresa</h1>
+        <p>Administra tu empresa, acepta el contrato digital, gestiona vacantes y consulta facturas y estadísticas.</p>
+      </div>
       <section class="card">
         <h2>Empresa: acceso</h2>
         <div class="row">
@@ -76,6 +81,16 @@
       </section>
 
       <section class="card">
+        <h2>Mis estadísticas</h2>
+        <div class="small muted">Accesos a mis vacantes (ventana móvil de 30 días por defecto).</div>
+        <div class="inline" style="margin-top:10px;">
+          <button id="btnLoadStats" class="fit">Cargar stats</button>
+          <button id="btnClearStats" class="secondary fit">Limpiar</button>
+        </div>
+        <pre id="statsOut">(sin datos)</pre>
+      </section>
+
+      <section class="card">
         <h2>Vacantes (CRUD)</h2>
         <div class="row">
           <div>
@@ -117,185 +132,247 @@
       </section>
     </main>
 
-    <script src="/app.js"></script>
+    <script src="/app.js?v=1"></script>
     <script>
-      const { apiFetch, setToken, getToken, clearToken, decodeJwt, el, showJson } = window.Bonaparte;
-      const TOKEN_KEY = 'bonaparte_empresa_token';
+      (() => {
+        if (!window.Bonaparte) {
+          alert('No cargó /app.js (JavaScript). Abre la web desde http://localhost:8080/ y revisa la consola (F12).');
+          throw new Error('Bonaparte frontend: window.Bonaparte not found');
+        }
 
-      function token() {
-        return getToken(TOKEN_KEY);
-      }
+        const B = window.Bonaparte;
+        const TOKEN_KEY = 'bonaparte_empresa_token';
 
-      function companyIdFromToken() {
-        const t = token();
-        if (!t) return null;
-        const payload = decodeJwt(t);
-        return payload && payload.companyId ? payload.companyId : null;
-      }
+        function token() {
+          return B.getToken(TOKEN_KEY);
+        }
 
-      function refreshAuthOut(extra) {
-        const payload = token() ? decodeJwt(token()) : null;
-        showJson(el('authOut'), {
-          loggedIn: Boolean(token()),
-          payload,
-          ...extra,
-        });
-      }
+        function ensureFilled(id, label) {
+          const value = (B.el(id).value || '').trim();
+          if (!value) throw new Error(`Falta ${label}`);
+          return value;
+        }
 
-      async function login() {
-        const data = await apiFetch('/api/auth/login', {
-          method: 'POST',
-          body: { username: el('loginUser').value, password: el('loginPass').value },
-        });
-        setToken(TOKEN_KEY, data.token);
-        refreshAuthOut({ role: data.role });
-      }
+        function companyIdFromToken() {
+          const t = token();
+          if (!t) return null;
+          const payload = B.decodeJwt(t);
+          return payload && payload.companyId ? payload.companyId : null;
+        }
 
-      async function registerCompany() {
-        const data = await apiFetch('/api/auth/register/company', {
-          method: 'POST',
-          body: {
-            username: el('regUser').value,
-            password: el('regPass').value,
-            company: {
-              name: el('regName').value,
-              type: el('regType').value,
-              email: el('regEmail').value,
-              phone: el('regPhone').value,
-              address: el('regAddress').value,
+        function refreshAuthOut(extra) {
+          const payload = token() ? B.decodeJwt(token()) : null;
+          B.showJson(B.el('authOut'), {
+            loggedIn: Boolean(token()),
+            payload,
+            ...extra,
+          });
+        }
+
+        function updateContractUi(contract) {
+          if (!contract) {
+            B.el('contractOut').textContent = '(sin datos)';
+            B.el('btnAcceptContract').disabled = false;
+            return;
+          }
+          B.showJson(B.el('contractOut'), contract);
+          const accepted = Boolean(contract.accepted);
+          B.el('btnAcceptContract').disabled = accepted;
+          B.el('btnAcceptContract').textContent = accepted ? 'Contrato aceptado' : 'Aceptar contrato';
+        }
+
+        async function login() {
+            const data = await B.apiFetch('/api/auth/login', {
+              method: 'POST',
+              body: { username: B.el('loginUser').value, password: B.el('loginPass').value },
+            });
+            B.setToken(TOKEN_KEY, data.token);
+            refreshAuthOut({ role: data.role });
+            B.toast('Sesión iniciada', 'success');
+        }
+
+        async function registerCompany() {
+          const username = ensureFilled('regUser', 'username');
+          const password = ensureFilled('regPass', 'password');
+          const name = ensureFilled('regName', 'nombre de empresa');
+          const type = B.el('regType').value;
+          const email = ensureFilled('regEmail', 'email');
+          const phone = ensureFilled('regPhone', 'teléfono');
+          const address = ensureFilled('regAddress', 'dirección');
+
+          const data = await B.apiFetch('/api/auth/register/company', {
+            method: 'POST',
+            body: {
+              username,
+              password,
+              company: { name, type, email, phone, address },
             },
-          },
-        });
-        setToken(TOKEN_KEY, data.token);
-        refreshAuthOut({ registered: true, company: data.company });
-      }
+          });
 
-      async function loadContract() {
-        const cid = companyIdFromToken();
-        if (!cid) throw new Error('No hay companyId (inicia sesión)');
-        const data = await apiFetch(`/api/companies/${cid}/contract`, { token: token() });
-        showJson(el('contractOut'), data);
-      }
-
-      async function acceptContract() {
-        const cid = companyIdFromToken();
-        if (!cid) throw new Error('No hay companyId (inicia sesión)');
-        const data = await apiFetch(`/api/companies/${cid}/contract/accept`, {
-          method: 'POST',
-          token: token(),
-          body: {},
-        });
-        showJson(el('contractOut'), data);
-      }
-
-      async function createVacancy() {
-        const cid = companyIdFromToken();
-        if (!cid) throw new Error('No hay companyId (inicia sesión)');
-        const data = await apiFetch('/api/vacancies', {
-          method: 'POST',
-          token: token(),
-          body: {
-            companyId: cid,
-            title: el('vacTitle').value,
-            description: el('vacDesc').value,
-            location: el('vacLoc').value,
-            salary: el('vacSalary').value,
-            status: el('vacStatus').value,
-          },
-        });
-        await loadVacancies();
-        return data;
-      }
-
-      async function loadVacancies() {
-        const cid = companyIdFromToken();
-        if (!cid) throw new Error('No hay companyId (inicia sesión)');
-        const items = await apiFetch(`/api/vacancies?companyId=${encodeURIComponent(cid)}`);
-
-        const container = el('vacList');
-        container.innerHTML = '';
-        if (!items.length) {
-          container.innerHTML = '<div class="small muted">No hay vacantes.</div>';
-          return;
+          B.setToken(TOKEN_KEY, data.token);
+          refreshAuthOut({ registered: true, company: data.company });
+          updateContractUi(data.contract || null);
+          B.toast('Empresa creada y sesión iniciada', 'success');
         }
 
-        items.forEach((v) => {
-          const div = document.createElement('div');
-          div.className = 'card';
-          div.style.margin = '0';
-          div.innerHTML = `
-            <div class="item-title">${v.title}</div>
-            <div class="small muted">${v.status} • ${v.location || ''}</div>
-            <div class="small">id: ${v.id}</div>
-            <div class="inline" style="margin-top:10px;">
-              <button class="secondary fit">Cerrar</button>
-              <button class="secondary fit">Abrir</button>
-              <button class="fit">Eliminar</button>
-            </div>
-          `;
-          const [btnClose, btnOpen, btnDelete] = div.querySelectorAll('button');
-
-          btnClose.onclick = async () => {
-            await apiFetch(`/api/vacancies/${v.id}`, { method: 'PUT', token: token(), body: { status: 'closed' } });
-            await loadVacancies();
-          };
-
-          btnOpen.onclick = async () => {
-            await apiFetch(`/api/vacancies/${v.id}`, { method: 'PUT', token: token(), body: { status: 'open' } });
-            await loadVacancies();
-          };
-
-          btnDelete.onclick = async () => {
-            await apiFetch(`/api/vacancies/${v.id}`, { method: 'DELETE', token: token() });
-            await loadVacancies();
-          };
-
-          container.appendChild(div);
-        });
-      }
-
-      async function loadMyInvoices() {
-        const items = await apiFetch('/api/invoices/my', { token: token() });
-        const container = el('invoiceList');
-        container.innerHTML = '';
-        if (!items.length) {
-          container.innerHTML = '<div class="small muted">No hay facturas aún.</div>';
-          return;
+        async function loadContract() {
+          const cid = companyIdFromToken();
+          if (!cid) throw new Error('No hay companyId (inicia sesión)');
+          const data = await B.apiFetch(`/api/companies/${cid}/contract`, { token: token() });
+          updateContractUi(data);
+          B.toast('Contrato cargado', 'info');
         }
 
-        items.forEach((inv) => {
-          const div = document.createElement('div');
-          div.className = 'card';
-          div.style.margin = '0';
-          const link = inv.file && inv.file.publicUrl ? `<a href="${inv.file.publicUrl}" target="_blank" rel="noreferrer">Abrir factura HTML</a>` : '(sin archivo)';
-          div.innerHTML = `
-            <div class="item-title">Factura ${inv.id}</div>
-            <div class="small muted">Periodo: ${inv.periodStart} → ${inv.periodEnd}</div>
-            <div class="small">Interacciones: ${inv.interactionsCount} • Total: ${inv.total}</div>
-            <div class="small">${link}</div>
-          `;
-          container.appendChild(div);
+        async function acceptContract() {
+          const cid = companyIdFromToken();
+          if (!cid) throw new Error('No hay companyId (inicia sesión)');
+          const data = await B.apiFetch(`/api/companies/${cid}/contract/accept`, {
+            method: 'POST',
+            token: token(),
+            body: {},
+          });
+          updateContractUi(data);
+          B.toast('Contrato aceptado', 'success');
+        }
+
+        async function createVacancy() {
+          const cid = companyIdFromToken();
+          if (!cid) throw new Error('No hay companyId (inicia sesión)');
+          const data = await B.apiFetch('/api/vacancies', {
+            method: 'POST',
+            token: token(),
+            body: {
+              companyId: cid,
+              title: B.el('vacTitle').value,
+              description: B.el('vacDesc').value,
+              location: B.el('vacLoc').value,
+              salary: B.el('vacSalary').value,
+              status: B.el('vacStatus').value,
+            },
+          });
+          await loadVacancies();
+          B.toast('Vacante creada', 'success');
+          return data;
+        }
+
+        async function loadVacancies() {
+          const cid = companyIdFromToken();
+          if (!cid) throw new Error('No hay companyId (inicia sesión)');
+          const items = await B.apiFetch(`/api/vacancies?companyId=${encodeURIComponent(cid)}`);
+
+          const container = B.el('vacList');
+          container.innerHTML = '';
+          if (!items.length) {
+            container.innerHTML = '<div class="small muted">No hay vacantes.</div>';
+            return;
+          }
+
+          items.forEach((v) => {
+            const div = document.createElement('div');
+            div.className = 'card';
+            div.style.margin = '0';
+            div.innerHTML = `
+              <div class="item-title">${v.title}</div>
+              <div class="small muted">${v.status} • ${v.location || ''}</div>
+              <div class="small">id: ${v.id}</div>
+              <div class="inline" style="margin-top:10px;">
+                <button class="secondary fit">Cerrar</button>
+                <button class="secondary fit">Abrir</button>
+                <button class="fit">Eliminar</button>
+              </div>
+            `;
+            const [btnClose, btnOpen, btnDelete] = div.querySelectorAll('button');
+
+            btnClose.onclick = () => B.withButton(btnClose, async () => {
+              await B.apiFetch(`/api/vacancies/${v.id}`, { method: 'PUT', token: token(), body: { status: 'closed' } });
+              await loadVacancies();
+              B.toast('Vacante cerrada', 'info');
+            });
+
+            btnOpen.onclick = () => B.withButton(btnOpen, async () => {
+              await B.apiFetch(`/api/vacancies/${v.id}`, { method: 'PUT', token: token(), body: { status: 'open' } });
+              await loadVacancies();
+              B.toast('Vacante abierta', 'success');
+            });
+
+            btnDelete.onclick = () => B.withButton(btnDelete, async () => {
+              await B.apiFetch(`/api/vacancies/${v.id}`, { method: 'DELETE', token: token() });
+              await loadVacancies();
+              B.toast('Vacante eliminada', 'warn');
+            });
+
+            container.appendChild(div);
+          });
+        }
+
+        async function loadMyStats() {
+          const data = await B.apiFetch('/api/stats/empresa', { token: token() });
+          B.showJson(B.el('statsOut'), data);
+        }
+
+        async function loadMyInvoices() {
+          const items = await B.apiFetch('/api/invoices/my', { token: token() });
+          const container = B.el('invoiceList');
+          container.innerHTML = '';
+          if (!items.length) {
+            container.innerHTML = '<div class="small muted">No hay facturas aún.</div>';
+            return;
+          }
+
+          items.forEach((inv) => {
+            const div = document.createElement('div');
+            div.className = 'card';
+            div.style.margin = '0';
+            const link = inv.file && inv.file.publicUrl ? `<a href="${inv.file.publicUrl}" target="_blank" rel="noreferrer">Abrir factura HTML</a>` : '(sin archivo)';
+            div.innerHTML = `
+              <div class="item-title">Factura ${inv.id}</div>
+              <div class="small muted">Periodo: ${inv.periodStart} → ${inv.periodEnd}</div>
+              <div class="small">Interacciones: ${inv.interactionsCount} • Total: ${inv.total}</div>
+              <div class="small">${link}</div>
+            `;
+            container.appendChild(div);
+          });
+        }
+
+        B.el('btnLogin').onclick = () => B.withButton(B.el('btnLogin'), async () => {
+          try { await login(); } catch (e) { B.toast(e.message || 'Error al iniciar sesión', 'error'); }
         });
-      }
+        B.el('btnLogout').onclick = () => {
+          B.clearToken(TOKEN_KEY);
+          refreshAuthOut({ loggedOut: true });
+          B.toast('Sesión cerrada');
+        };
+        B.el('btnRegister').onclick = () => B.withButton(B.el('btnRegister'), async () => {
+          try { await registerCompany(); } catch (e) { B.toast(e.message || 'Error al registrar', 'error'); }
+        });
 
-      el('btnLogin').onclick = () => login().catch((e) => alert(e.message));
-      el('btnLogout').onclick = () => {
-        clearToken(TOKEN_KEY);
-        refreshAuthOut({ loggedOut: true });
-      };
-      el('btnRegister').onclick = () => registerCompany().catch((e) => alert(e.message));
+        B.el('btnLoadContract').onclick = () => B.withButton(B.el('btnLoadContract'), async () => {
+          try { await loadContract(); } catch (e) { B.toast(e.message || 'Error al cargar contrato', 'error'); }
+        });
+        B.el('btnAcceptContract').onclick = () => B.withButton(B.el('btnAcceptContract'), async () => {
+          try { await acceptContract(); } catch (e) { B.toast(e.message || 'Error al aceptar contrato', 'error'); }
+        });
 
-      el('btnLoadContract').onclick = () => loadContract().catch((e) => alert(e.message));
-      el('btnAcceptContract').onclick = () => acceptContract().catch((e) => alert(e.message));
+        B.el('btnCreateVac').onclick = () => B.withButton(B.el('btnCreateVac'), async () => {
+          try { await createVacancy(); } catch (e) { B.toast(e.message || 'Error al crear vacante', 'error'); }
+        });
+        B.el('btnLoadVac').onclick = () => B.withButton(B.el('btnLoadVac'), async () => {
+          try { await loadVacancies(); } catch (e) { B.toast(e.message || 'Error al cargar vacantes', 'error'); }
+        });
+        B.el('btnClearVac').onclick = () => (B.el('vacList').innerHTML = '');
 
-      el('btnCreateVac').onclick = () => createVacancy().catch((e) => alert(e.message));
-      el('btnLoadVac').onclick = () => loadVacancies().catch((e) => alert(e.message));
-      el('btnClearVac').onclick = () => (el('vacList').innerHTML = '');
+        B.el('btnLoadInvoices').onclick = () => B.withButton(B.el('btnLoadInvoices'), async () => {
+          try { await loadMyInvoices(); } catch (e) { B.toast(e.message || 'Error al cargar facturas', 'error'); }
+        });
+        B.el('btnClearInvoices').onclick = () => (B.el('invoiceList').innerHTML = '');
 
-      el('btnLoadInvoices').onclick = () => loadMyInvoices().catch((e) => alert(e.message));
-      el('btnClearInvoices').onclick = () => (el('invoiceList').innerHTML = '');
+        B.el('btnLoadStats').onclick = () => B.withButton(B.el('btnLoadStats'), async () => {
+          try { await loadMyStats(); } catch (e) { B.toast(e.message || 'Error al cargar estadísticas', 'error'); }
+        });
+        B.el('btnClearStats').onclick = () => (B.el('statsOut').textContent = '(sin datos)');
 
-      refreshAuthOut();
+        refreshAuthOut();
+      })();
     </script>
   </body>
 </html>

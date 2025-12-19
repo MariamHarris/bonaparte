@@ -30,26 +30,40 @@ router.post('/generate', requireConsultora, async (req, res, next) => {
       return res.status(400).json({ error: 'Fechas inválidas' });
     }
 
-    const toll = typeof tollPerInteraction === 'number' ? tollPerInteraction : 0.25;
+    const toll = typeof tollPerInteraction === 'number' ? Number(tollPerInteraction) : 0.25;
     const interactionsCount = await countInteractionsForCompany({
       companyId,
       start,
       end,
     });
 
-    const total = Number((interactionsCount * toll).toFixed(2));
+    const subtotal = Number((interactionsCount * toll).toFixed(2));
+    const itbmsRate = 7.0;
+    const itbmsAmount = Number((subtotal * (itbmsRate / 100)).toFixed(2));
+    const grandTotal = Number((subtotal + itbmsAmount).toFixed(2));
+    const fiscalNumber = `BPA-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 9000) + 1000)}`;
+
     const invoice = await createInvoice({
       companyId,
       periodStart: start,
       periodEnd: end,
       interactionsCount,
       tollPerInteraction: toll,
-      total,
+      subtotal,
+      itbmsRate,
+      itbmsAmount,
+      total: grandTotal,
+      grandTotal,
+      fiscalNumber,
       status: 'issued',
     });
 
     const dgiEmulation = {
-      fiscalNumber: `FISC-${invoice.id.slice(0, 8).toUpperCase()}`,
+      fiscalNumber: invoice.fiscalNumber || fiscalNumber,
+      ruc: company.ruc || '155-789-456',
+      dv: company.dv || '82',
+      nit: company.nit || null,
+      itbmsRate,
       type: 'Factura Fiscal (Emulada)',
     };
 

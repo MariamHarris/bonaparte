@@ -1,0 +1,12 @@
+# Mirror of ../replica.cnf, baked into image to avoid Windows bind-mount permission issues.
+
+[mysqld]
+server-id=2
+relay_log=relay-bin
+log_bin=mysql-bin
+binlog_format=ROW
+gtid_mode=ON
+enforce_gtid_consistency=ON
+log_slave_updates=ON
+read_only=ON
+skip_name_resolve=1

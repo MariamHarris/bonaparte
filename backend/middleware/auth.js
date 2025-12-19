@@ -1,5 +1,7 @@
 const { verifyAccessToken } = require('../services/jwt');
 
+const SECURE_MODE = process.env.SECURE_MODE === 'true';
+
 function authenticate(req, res, next) {
   const authHeader = req.header('authorization');
   if (authHeader && authHeader.startsWith('Bearer ')) {
@@ -17,14 +19,19 @@ function authenticate(req, res, next) {
     }
   }
 
-  // Compatibilidad con MVP anterior (header-based). Útil para pruebas rápidas.
-  const role = req.header('x-role');
-  if (role === 'empresa' || role === 'consultora') {
-    req.user = { id: null, role, companyId: null, emulated: true };
-    return next();
+  // Compatibilidad con MVP anterior (solo si SECURE_MODE está desactivado)
+  if (!SECURE_MODE) {
+    const role = req.header('x-role');
+    if (role === 'empresa' || role === 'consultora') {
+      req.user = { id: null, role, companyId: null, emulated: true };
+      return next();
+    }
   }
 
-  return res.status(401).json({ error: 'No autenticado' });
+  const msg = SECURE_MODE
+    ? 'No autenticado. Usa Authorization: Bearer <token>.'
+    : 'No autenticado';
+  return res.status(401).json({ error: msg });
 }
 
 function requireRole(role) {

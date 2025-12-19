@@ -5,11 +5,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Bonaparte - Público</title>
     <link rel="stylesheet" href="/styles.css" />
+    <style>
+      .stats-box { margin-top: 12px; padding: 10px; border: 1px solid #2d3748; border-radius: 10px; background: #0f172a; }
+      .stats-title { font-size: 14px; font-weight: 700; margin-bottom: 6px; }
+      .stats-meta { font-size: 12px; color: #94a3b8; margin-bottom: 8px; }
+      .stats-bars { display: grid; gap: 6px; }
+      .stats-row { display: grid; grid-template-columns: 120px 1fr 60px; align-items: center; gap: 8px; font-size: 13px; }
+      .stats-bar { height: 8px; border-radius: 999px; background: linear-gradient(90deg, #38bdf8, #6366f1); }
+      .stats-badge { display: inline-block; padding: 2px 8px; border-radius: 999px; background: #1e293b; color: #e2e8f0; font-size: 12px; }
+    </style>
   </head>
   <body>
     <header>
       <div class="container">
         <div class="nav">
+          <span class="brand">Bonaparte</span>
           <a href="/">Público</a>
           <a href="/empresa.html">Empresa</a>
           <a href="/consultora.html">Consultora</a>
@@ -19,10 +29,27 @@
     </header>
 
     <main class="container">
+      <div class="hero">
+        <h1>Portal Público</h1>
+        <p>Acceso público sin registro. Datos simulados para fines académicos en contexto Panamá.</p>
+        <p class="small muted">Abrir o detallar vacantes y usar el chatbot generan interacciones que alimentan el peaje (costo por visibilidad que factura la Empresa Consultora).</p>
+        <div class="inline" style="margin-top:10px; gap:8px; flex-wrap:wrap;">
+          <span class="badge">Simulado · Panamá</span>
+          <span class="badge">Interacciones → Peaje</span>
+          <span class="badge">Sin registro</span>
+        </div>
+      </div>
+
+      <section class="card">
+        <h2>Visión y Misión (simulado)</h2>
+        <p><strong>Visión:</strong> Ser el portal panameño de referencia para conectar talento con empresas públicas y privadas, midiendo interacciones para garantizar transparencia en el peaje.</p>
+        <p><strong>Misión:</strong> Facilitar vacantes verificables por provincia de Panamá, registrar cada interacción (acceso, detalle, chat) y ofrecer trazabilidad para facturación emulada tipo DGI.</p>
+        <div class="small muted">Datos académicos y simulados; no requieren registro.</div>
+      </section>
       <div class="row">
         <section class="card">
           <h2>Vacantes</h2>
-          <div class="small muted">Lista pública. Al abrir una vacante se registra una interacción (acceso).</div>
+          <div class="small muted">Lista pública Panamá. Al abrir una vacante se registra una interacción (acceso) que suma al peaje.</div>
 
           <div class="inline" style="margin-top: 10px;">
             <button id="btnLoad" class="fit">Cargar vacantes</button>
@@ -34,7 +61,7 @@
 
         <section class="card">
           <h2>Chatbot</h2>
-          <div class="small muted">Guía de dudas. Si hay una vacante seleccionada, registra interacción por chat.</div>
+          <div class="small muted">Guía de dudas. Si hay una vacante seleccionada, registrarás interacción por chat asociada a la vacante.</div>
 
           <label>Vacante seleccionada</label>
           <div id="selectedVacancy" class="small">(ninguna)</div>
@@ -49,34 +76,93 @@
 
           <h3 style="margin-top: 14px;">Respuesta</h3>
           <pre id="chatOut">(sin respuesta)</pre>
+          <div id="chatStats" class="stats-box" aria-live="polite">
+            <div class="stats-title">Estadísticas de la vacante (últimos 30 días)</div>
+            <div class="stats-meta">Selecciona una vacante y pregunta algo para ver interacciones registradas (peaje).</div>
+            <div class="stats-bars" id="chatStatsContent"></div>
+          </div>
         </section>
       </div>
 
       <section class="card">
         <h2>Detalle de vacante</h2>
-        <div class="small muted">Se llena cuando haces click en una vacante.</div>
+        <div class="small muted">Se llena cuando haces click en una vacante. Muestra provincia panameña (o valor simulado) y tipo de empresa.</div>
         <pre id="vacancyOut">(sin selección)</pre>
       </section>
     </main>
 
-    <script src="/app.js"></script>
+    <script src="/app.js?v=1"></script>
     <script>
-      const { apiFetch, el, showJson } = window.Bonaparte;
+      (() => {
+        if (!window.Bonaparte) {
+          alert('No cargó /app.js (JavaScript). Abre la web desde http://localhost:8080/ y revisa la consola (F12).');
+          throw new Error('Bonaparte frontend: window.Bonaparte not found');
+        }
+        const B = window.Bonaparte;
 
-      let selectedVacancyId = null;
-      let selectedVacancyTitle = null;
+        const PROVINCES = [
+          'panamá',
+          'panama',
+          'panamá oeste',
+          'panama oeste',
+          'chiriquí',
+          'chiriqui',
+          'veraguas',
+          'coclé',
+          'cocle',
+          'herrera',
+          'los santos',
+          'colón',
+          'colon',
+          'darién',
+          'darien',
+          'bocas del toro',
+        ];
+
+        // Mapa de tipos de empresa conocido (semilla). Si no se conoce, se asume privada (simulado).
+        const COMPANY_TYPES = {
+          '11111111-1111-1111-1111-111111111111': 'Privada',
+          '22222222-2222-2222-2222-222222222222': 'Pública',
+          '33333333-3333-3333-3333-333333333333': 'Privada',
+        };
+
+        let selectedVacancyId = null;
+        let selectedVacancyTitle = null;
+
+      function findProvince(value) {
+        const text = String(value || '').toLowerCase();
+        const hit = PROVINCES.find((p) => text.includes(p));
+        if (hit) {
+          // normalizamos mayúsculas para mostrar bonito
+          return hit
+            .split(' ')
+            .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+            .join(' ')
+            .replace('Panama', 'Panamá')
+            .replace('Chiriqui', 'Chiriquí')
+            .replace('Cocle', 'Coclé')
+            .replace('Colon', 'Colón')
+            .replace('Darien', 'Darién');
+        }
+        return 'Panamá (simulado)';
+      }
+
+      function companyTypeLabel(v) {
+        const known = v && v.companyId ? COMPANY_TYPES[v.companyId] : null;
+        return known ? `${known} (simulado)` : 'Privada (simulado)';
+      }
 
       function setSelectedVacancy(v) {
         selectedVacancyId = v ? v.id : null;
         selectedVacancyTitle = v ? v.title : null;
-        el('selectedVacancy').textContent = selectedVacancyId
+        B.el('selectedVacancy').textContent = selectedVacancyId
           ? `${selectedVacancyTitle} (${selectedVacancyId})`
           : '(ninguna)';
       }
 
       async function loadVacancies() {
-        const items = await apiFetch('/api/vacancies');
-        const container = el('vacancies');
+        const items = await B.apiFetch('/api/vacancies');
+        const container = B.el('vacancies');
         container.innerHTML = '';
 
         if (!items.length) {
@@ -90,7 +176,9 @@
           div.style.margin = '0';
           div.innerHTML = `
             <div class="item-title">${v.title}</div>
-            <div class="small muted">${v.location || ''} ${v.status ? '• ' + v.status : ''}</div>
+            <div class="small muted">${v.location || 'Ubicación no enviada'} ${v.status ? '• ' + v.status : ''}</div>
+            <div class="small">Provincia: ${findProvince(v.location)}</div>
+            <div class="small">Tipo de empresa: <span class="badge">${companyTypeLabel(v)}</span></div>
             <div class="small">companyId: ${v.companyId}</div>
             <div class="inline" style="margin-top: 10px;">
               <button class="fit">Abrir</button>
@@ -101,8 +189,14 @@
           const [btnOpen, btnSelect] = div.querySelectorAll('button');
 
           btnOpen.onclick = async () => {
-            const detail = await apiFetch(`/api/vacancies/${v.id}`);
-            showJson(el('vacancyOut'), detail);
+            const detail = await B.apiFetch(`/api/vacancies/${v.id}`);
+            const enriched = {
+              ...detail,
+              uiProvince: findProvince(detail.location),
+              uiCompanyType: companyTypeLabel(detail),
+              uiNotas: 'Interacción registrada al abrir. Datos simulados para Panamá.',
+            };
+            B.showJson(B.el('vacancyOut'), enriched);
             setSelectedVacancy({ id: v.id, title: v.title });
           };
 
@@ -119,30 +213,109 @@
           message,
           vacancyId: selectedVacancyId,
         };
-        const data = await apiFetch('/api/chatbot/ask', { method: 'POST', body: payload });
-        showJson(el('chatOut'), data);
+        const data = await B.apiFetch('/api/chatbot/ask', { method: 'POST', body: payload });
+        B.showJson(B.el('chatOut'), data);
+        renderChatStats(data.stats);
       }
 
-      el('btnLoad').onclick = () => loadVacancies().catch((e) => alert(e.message));
-      el('btnClear').onclick = () => {
-        el('vacancies').innerHTML = '';
-        el('vacancyOut').textContent = '(sin selección)';
-        el('chatOut').textContent = '(sin respuesta)';
+      function renderBars(container, rows, labelKey, valueKey) {
+        const max = Math.max(...rows.map((r) => Number(r[valueKey]) || 0), 1);
+        container.innerHTML = '';
+        rows.forEach((r) => {
+          const label = r[labelKey];
+          const val = Number(r[valueKey]) || 0;
+          const pct = Math.max(4, Math.min(100, (val / max) * 100));
+          const row = document.createElement('div');
+          row.className = 'stats-row';
+          row.innerHTML = `
+            <span>${label}</span>
+            <div class="stats-bar" style="width:${pct}%"></div>
+            <span class="stats-badge">${val}</span>
+          `;
+          container.appendChild(row);
+        });
+      }
+
+      function renderChatStats(stats) {
+        const box = B.el('chatStatsContent');
+        if (!stats) {
+          box.innerHTML = '<div class="small muted">Aún no hay estadísticas; selecciona una vacante y consulta al chatbot.</div>';
+          return;
+        }
+
+        const { byChannel = [], byEvent = [], totalInteractions = 0 } = stats;
+        const frag = document.createDocumentFragment();
+
+        const totalDiv = document.createElement('div');
+        totalDiv.className = 'stats-meta';
+        totalDiv.textContent = `Total de interacciones: ${totalInteractions}`;
+        frag.appendChild(totalDiv);
+
+        if (byChannel.length) {
+          const title = document.createElement('div');
+          title.className = 'stats-title';
+          title.textContent = 'Por canal';
+          frag.appendChild(title);
+          const wrap = document.createElement('div');
+          wrap.className = 'stats-bars';
+          renderBars(wrap, byChannel.map((c) => ({ label: c.channel, value: c.count })), 'label', 'value');
+          frag.appendChild(wrap);
+        }
+
+        if (byEvent.length) {
+          const title = document.createElement('div');
+          title.className = 'stats-title';
+          title.textContent = 'Por evento';
+          frag.appendChild(title);
+          const wrap = document.createElement('div');
+          wrap.className = 'stats-bars';
+          renderBars(wrap, byEvent.map((e) => ({ label: e.event, value: e.count })), 'label', 'value');
+          frag.appendChild(wrap);
+        }
+
+        box.innerHTML = '';
+        box.appendChild(frag);
+      }
+
+      B.el('btnLoad').onclick = () => B.withButton(B.el('btnLoad'), async () => {
+        try {
+          await loadVacancies();
+          B.toast('Vacantes cargadas', 'success');
+        } catch (e) {
+          B.toast(e.message || 'Error al cargar vacantes', 'error');
+        }
+      });
+
+      B.el('btnClear').onclick = () => {
+        B.el('vacancies').innerHTML = '';
+        B.el('vacancyOut').textContent = '(sin selección)';
+        B.el('chatOut').textContent = '(sin respuesta)';
+        B.el('chatStatsContent').innerHTML = '<div class="small muted">Aún no hay estadísticas; selecciona una vacante y consulta al chatbot.</div>';
         setSelectedVacancy(null);
       };
 
-      el('btnAsk').onclick = () => {
-        const msg = el('chatMessage').value;
-        askChat(msg).catch((e) => alert(e.message));
-      };
+      B.el('btnAsk').onclick = () => B.withButton(B.el('btnAsk'), async () => {
+        try {
+          const msg = B.el('chatMessage').value;
+          await askChat(msg);
+        } catch (e) {
+          B.toast(e.message || 'Error en chatbot', 'error');
+        }
+      });
 
-      el('btnAskHelp').onclick = () => {
-        el('chatMessage').value = 'Ayuda';
-        askChat('Ayuda').catch((e) => alert(e.message));
-      };
+      B.el('btnAskHelp').onclick = () => B.withButton(B.el('btnAskHelp'), async () => {
+        try {
+          B.el('chatMessage').value = 'Ayuda';
+          await askChat('Ayuda');
+        } catch (e) {
+          B.toast(e.message || 'Error en chatbot', 'error');
+        }
+      });
 
       // Autoload
       loadVacancies().catch(() => {});
+      renderChatStats(null);
+      })();
     </script>
   </body>
 </html>

@@ -3,6 +3,14 @@
 CREATE TABLE IF NOT EXISTS companies (
   id CHAR(36) PRIMARY KEY,
   name VARCHAR(255) NOT NULL,
+  commercial_name VARCHAR(255),
+  legal_name VARCHAR(255),
+  ruc VARCHAR(50),
+  dv VARCHAR(10),
+  nit VARCHAR(50),
+  province VARCHAR(100),
+  district VARCHAR(100),
+  corregimiento VARCHAR(100),
   type ENUM('public','private') NOT NULL DEFAULT 'private',
   email VARCHAR(255),
   phone VARCHAR(50),
@@ -27,10 +35,12 @@ CREATE TABLE IF NOT EXISTS vacancies (
 CREATE TABLE IF NOT EXISTS interactions (
   id CHAR(36) PRIMARY KEY,
   vacancy_id CHAR(36) NOT NULL,
+  company_id CHAR(36) NULL,
   channel VARCHAR(50) NOT NULL DEFAULT 'web',
   event VARCHAR(50) NOT NULL DEFAULT 'view',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT fk_interaction_vacancy FOREIGN KEY (vacancy_id) REFERENCES vacancies(id)
+  CONSTRAINT fk_interaction_vacancy FOREIGN KEY (vacancy_id) REFERENCES vacancies(id),
+  CONSTRAINT fk_interaction_company FOREIGN KEY (company_id) REFERENCES companies(id)
 );
 
 CREATE TABLE IF NOT EXISTS invoices (
@@ -40,7 +50,12 @@ CREATE TABLE IF NOT EXISTS invoices (
   period_end DATETIME NOT NULL,
   interactions_count INT NOT NULL,
   toll_per_interaction DECIMAL(10,2) NOT NULL,
+  subtotal DECIMAL(10,2) NOT NULL DEFAULT 0,
+  itbms_rate DECIMAL(5,2) NOT NULL DEFAULT 7.00,
+  itbms_amount DECIMAL(10,2) NOT NULL DEFAULT 0,
   total DECIMAL(10,2) NOT NULL,
+  grand_total DECIMAL(10,2) NOT NULL DEFAULT 0,
+  fiscal_number VARCHAR(50),
   status ENUM('draft','issued','paid','void') NOT NULL DEFAULT 'draft',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_invoice_company FOREIGN KEY (company_id) REFERENCES companies(id)
@@ -61,6 +76,12 @@ CREATE TABLE IF NOT EXISTS company_contracts (
   accepted TINYINT(1) NOT NULL DEFAULT 0,
   accepted_at DATETIME NULL,
   toll_description TEXT NOT NULL,
+  toll_usd_per_interaction DECIMAL(10,2) NOT NULL DEFAULT 0.25,
+  interaction_definition TEXT,
+  billing_terms TEXT,
+  contract_html MEDIUMTEXT,
+  contract_json JSON,
+  contract_version VARCHAR(50) DEFAULT 'v1-panama',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_contract_company FOREIGN KEY (company_id) REFERENCES companies(id)
 );

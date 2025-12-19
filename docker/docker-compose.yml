@@ -18,7 +18,7 @@ services:
       MYSQL_USER: ${MYSQL_USER:-bonaparte}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:-yourpassword}
     ports:
-      - "3306:3306"
+      - "3307:3306"
     volumes:
       - mysql_data:/var/lib/mysql
       - ../database/mysql:/docker-entrypoint-initdb.d:ro

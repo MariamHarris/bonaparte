@@ -3,15 +3,17 @@ name: bonaparte-replication
 services:
   # Relacional (EXTERNA) - Primary / Writer
   mysql-external:
-    image: mysql:8.4
+    build:
+      context: ../database/mysql/replication/images/mysql-external
+    image: bonaparte-mysql-external:8.4
     container_name: bonaparte-mysql-external
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_PASSWORD:-yourpassword}
+      MYSQL_REPL_PASSWORD: ${MYSQL_REPL_PASSWORD:-replpassword}
     ports:
       - "3307:3306"
     volumes:
       - mysql_external_data:/var/lib/mysql
-      - ../database/mysql/replication/primary.cnf:/etc/mysql/conf.d/replication.cnf:ro
       - ../database/mysql/replication/primary-init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-p${MYSQL_PASSWORD:-yourpassword}"]
@@ -21,7 +23,9 @@ services:
 
   # Relacional (INTERNA) - Replica / Reader
   mysql-internal:
-    image: mysql:8.4
+    build:
+      context: ../database/mysql/replication/images/mysql-internal
+    image: bonaparte-mysql-internal:8.4
     container_name: bonaparte-mysql-internal
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_PASSWORD:-yourpassword}
@@ -29,7 +33,6 @@ services:
       - "3308:3306"
     volumes:
       - mysql_internal_data:/var/lib/mysql
-      - ../database/mysql/replication/replica.cnf:/etc/mysql/conf.d/replication.cnf:ro
       - ../database/mysql/replication/replica-init:/docker-entrypoint-initdb.d:ro
     depends_on:
       mysql-external:
@@ -56,9 +59,7 @@ services:
     command: >-
       bash -lc "
         echo 'Configuring replication (external -> internal)...';
-        mysql -h mysql-internal -uroot -e \"STOP REPLICA;\" || true;
-        mysql -h mysql-internal -uroot -e \"CHANGE REPLICATION SOURCE TO SOURCE_HOST='mysql-external', SOURCE_USER='repl', SOURCE_PASSWORD='${MYSQL_REPL_PASSWORD:-replpassword}', SOURCE_AUTO_POSITION=1;\";
-        mysql -h mysql-internal -uroot -e \"START REPLICA;\";
+        mysql -h mysql-internal -uroot -e \"STOP REPLICA; CHANGE REPLICATION SOURCE TO SOURCE_HOST='mysql-external', SOURCE_USER='repl', SOURCE_PASSWORD='${MYSQL_REPL_PASSWORD:-replpassword}', SOURCE_AUTO_POSITION=1, GET_SOURCE_PUBLIC_KEY=1; START REPLICA;\";
         mysql -h mysql-internal -uroot -e \"SHOW REPLICA STATUS\\G\" | head -n 60;
         echo 'Replication configured.';
       "
