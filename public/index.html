@@ -152,11 +152,16 @@
         return known ? `${known} (simulado)` : 'Privada (simulado)';
       }
 
+      function shortId(id) {
+        const s = String(id || '');
+        return s.length > 10 ? `${s.slice(0, 8)}…` : s;
+      }
+
       function setSelectedVacancy(v) {
         selectedVacancyId = v ? v.id : null;
         selectedVacancyTitle = v ? v.title : null;
         B.el('selectedVacancy').textContent = selectedVacancyId
-          ? `${selectedVacancyTitle} (${selectedVacancyId})`
+          ? `${selectedVacancyTitle} (${shortId(selectedVacancyId)})`
           : '(ninguna)';
       }
 
@@ -179,7 +184,7 @@
             <div class="small muted">${v.location || 'Ubicación no enviada'} ${v.status ? '• ' + v.status : ''}</div>
             <div class="small">Provincia: ${findProvince(v.location)}</div>
             <div class="small">Tipo de empresa: <span class="badge">${companyTypeLabel(v)}</span></div>
-            <div class="small">companyId: ${v.companyId}</div>
+            <div class="small" title="${v.companyId}">companyId: ${shortId(v.companyId)}</div>
             <div class="inline" style="margin-top: 10px;">
               <button class="fit">Abrir</button>
               <button class="secondary fit">Seleccionar para Chatbot</button>
