@@ -31,6 +31,25 @@ services:
     volumes:
       - ../public:/usr/share/nginx/html:ro
 
+  analytics:
+    build:
+      context: ..
+      dockerfile: analytics/Dockerfile
+    container_name: bonaparte-analytics
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_USER: ${MYSQL_USER:-bonaparte}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-yourpassword}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-bonaparte}
+      ANALYTICS_TOKEN: ${PY_ANALYTICS_TOKEN:-change-me-analytics}
+    depends_on:
+      - mysql
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../analytics:/app:ro
+
 volumes:
   mongo_data:
   mysql_data:

@@ -3,6 +3,26 @@ const { recordInteraction, getVacancyById, getVacancyInteractionStats } = requir
 
 const router = express.Router();
 
+const PY_ANALYTICS_URL = process.env.PY_ANALYTICS_URL;
+const PY_ANALYTICS_TOKEN = process.env.PY_ANALYTICS_TOKEN || process.env.ANALYTICS_TOKEN;
+
+async function callPythonChat(payload) {
+  if (!PY_ANALYTICS_URL) return null;
+  const headers = { 'Content-Type': 'application/json' };
+  if (PY_ANALYTICS_TOKEN) headers['x-api-key'] = PY_ANALYTICS_TOKEN;
+
+  const res = await fetch(`${PY_ANALYTICS_URL}/chatbot/ask`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Python chatbot error HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
 function normalizeText(text) {
   return String(text || '')
     .toLowerCase()
@@ -107,7 +127,20 @@ router.post('/ask', async (req, res, next) => {
   try {
     const { message, vacancyId } = req.body || {};
     const intent = detectIntent(message);
-    const answer = buildAnswer(intent);
+    let answer = buildAnswer(intent);
+    let intentUsed = intent;
+
+    if (PY_ANALYTICS_URL) {
+      try {
+        const pyAnswer = await callPythonChat({ message, vacancyId });
+        if (pyAnswer && pyAnswer.answer) {
+          answer = { text: pyAnswer.answer, suggestions: pyAnswer.suggestions || [] };
+          intentUsed = pyAnswer.intent || intent;
+        }
+      } catch (err) {
+        console.warn('Chatbot Python fallback usado:', err.message);
+      }
+    }
     const end = new Date();
     const start = new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000); // ventana 30 días para estadísticas de apoyo
 
@@ -123,7 +156,7 @@ router.post('/ask', async (req, res, next) => {
 
     res.json({
       ok: true,
-      intent,
+      intent: intentUsed,
       answer,
       linkedVacancy: linkedVacancy ? { id: linkedVacancy.id, title: linkedVacancy.title } : null,
       stats: vacancyStats

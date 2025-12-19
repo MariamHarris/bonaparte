@@ -7,6 +7,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Bonaparte - Consultora</title>
     <link rel="stylesheet" href="/styles.css" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   </head>
   <body>
     <header>
@@ -93,6 +94,20 @@
           </div>
         </div>
         <pre id="statsOut">(sin datos)</pre>
+      </section>
+
+      <section class="card">
+        <h2>Analytics (Python)</h2>
+        <div class="small muted">Resumen de interacciones (últimos 30 días por defecto) servido por FastAPI.</div>
+        <div class="inline" style="margin-top:10px;">
+          <button id="btnLoadAnalytics" class="fit">Cargar analytics</button>
+          <button id="btnClearAnalytics" class="secondary fit">Limpiar</button>
+        </div>
+        <div class="row" style="margin-top:12px;">
+          <div class="chart-box"><canvas id="chartProvince" height="220"></canvas></div>
+          <div class="chart-box"><canvas id="chartDaily" height="220"></canvas></div>
+        </div>
+        <pre id="analyticsRaw">(sin datos)</pre>
       </section>
 
       <section class="card">
@@ -238,6 +253,63 @@
         });
       }
 
+      let provinceChart;
+      let dailyChart;
+
+      function renderBar(canvasId, labels, dataset, label) {
+        const ctx = B.el(canvasId);
+        if (!ctx) return;
+        if (!window.Chart) {
+          B.toast('Chart.js no cargado', 'error');
+          return;
+        }
+        if (canvasId === 'chartProvince' && provinceChart) provinceChart.destroy();
+        if (canvasId === 'chartDaily' && dailyChart) dailyChart.destroy();
+
+        const chart = new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels,
+            datasets: [
+              {
+                label,
+                data: dataset,
+                backgroundColor: 'rgba(54, 162, 235, 0.5)',
+                borderColor: 'rgba(54, 162, 235, 1)',
+                borderWidth: 1,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            plugins: {
+              legend: { display: false },
+            },
+            scales: {
+              y: { beginAtZero: true },
+            },
+          },
+        });
+
+        if (canvasId === 'chartProvince') provinceChart = chart;
+        if (canvasId === 'chartDaily') dailyChart = chart;
+      }
+
+      async function loadAnalytics() {
+        const data = await B.apiFetch('/api/analytics/summary', { token: token() });
+        B.showJson(B.el('analyticsRaw'), data);
+
+        const provinceLabels = (data.byProvince || []).map((x) => x.label);
+        const provinceTotals = (data.byProvince || []).map((x) => x.total);
+        renderBar('chartProvince', provinceLabels, provinceTotals, 'Interacciones por provincia');
+
+        const dailyLabels = (data.daily || []).map((x) => x.day);
+        const dailyTotals = (data.daily || []).map((x) => x.total);
+        renderBar('chartDaily', dailyLabels, dailyTotals, 'Interacciones diarias');
+
+        B.toast('Analytics cargadas', 'info');
+      }
+
       async function askChatConsultora(message, vacancyId) {
         const payload = { message, vacancyId: vacancyId || undefined };
         const data = await B.apiFetch('/api/chatbot/ask', { method: 'POST', body: payload, token: token() });
@@ -275,6 +347,14 @@
         try { await loadCompanies(); } catch (e) { B.toast(e.message || 'Error al cargar empresas', 'error'); }
       });
       B.el('btnClearCompanies').onclick = () => (B.el('companiesList').innerHTML = '');
+      B.el('btnLoadAnalytics').onclick = () => B.withButton(B.el('btnLoadAnalytics'), async () => {
+        try { await loadAnalytics(); } catch (e) { B.toast(e.message || 'Error al cargar analytics', 'error'); }
+      });
+      B.el('btnClearAnalytics').onclick = () => {
+        if (provinceChart) provinceChart.destroy();
+        if (dailyChart) dailyChart.destroy();
+        B.el('analyticsRaw').textContent = '(sin datos)';
+      };
 
       B.el('btnAskConsultora').onclick = () => B.withButton(B.el('btnAskConsultora'), async () => {
         try {
