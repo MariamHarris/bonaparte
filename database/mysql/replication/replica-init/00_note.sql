@@ -1,0 +1,2 @@
+-- Intencionalmente vacío.
+-- El MySQL "interno" (replica) se inicializa sin transacciones de aplicación.

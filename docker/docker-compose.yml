@@ -1,0 +1,28 @@
+name: bonaparte
+
+services:
+  mongo:
+    image: mongo:7
+    container_name: bonaparte-mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+
+  mysql:
+    image: mysql:8.4
+    container_name: bonaparte-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_PASSWORD:-yourpassword}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-bonaparte}
+      MYSQL_USER: ${MYSQL_USER:-bonaparte}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-yourpassword}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ../database/mysql:/docker-entrypoint-initdb.d:ro
+
+volumes:
+  mongo_data:
+  mysql_data:

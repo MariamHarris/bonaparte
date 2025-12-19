@@ -1,0 +1,2 @@
+-- Datos de ejemplo (opcional)
+-- Se deja vacío a propósito para evitar datos que no pidieron explícitamente.

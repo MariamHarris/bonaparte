@@ -1,0 +1,47 @@
+datadir="/var/lib/proxysql"
+
+admin_variables=
+{
+  admin_credentials="admin:admin"
+  mysql_ifaces="0.0.0.0:6032"
+}
+
+mysql_variables=
+{
+  threads=4
+  max_connections=2048
+  default_query_delay=0
+  default_query_timeout=3600000
+  have_compress=true
+  poll_timeout=2000
+  interfaces="0.0.0.0:6033"
+  default_schema="bonaparte"
+  server_version="8.4"
+}
+
+# Hostgroups
+# 10 = writer (externa/primary)
+# 20 = reader (interna/replica)
+mysql_servers=
+(
+  { address="mysql-external" , port=3306 , hostgroup=10 , max_connections=200 },
+  { address="mysql-internal" , port=3306 , hostgroup=20 , max_connections=200 }
+)
+
+# Usuario de app (mismo user/pass que en MySQL)
+mysql_users=
+(
+  { username="bonaparte" , password="yourpassword" , default_hostgroup=10 , transaction_persistent=1 }
+)
+
+# Reglas: SELECT -> replica (20), el resto -> primary (10)
+mysql_query_rules=
+(
+  { rule_id=1, active=1, match_pattern="^SELECT" , destination_hostgroup=20, apply=1 },
+  { rule_id=2, active=1, match_pattern=".*" , destination_hostgroup=10, apply=1 }
+)
+
+mysql_replication_hostgroups=
+(
+  { writer_hostgroup=10, reader_hostgroup=20, comment="external->internal" }
+)

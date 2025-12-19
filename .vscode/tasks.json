@@ -1,0 +1,124 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Verify Bonaparte (Docker + API)",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-Command",
+				"docker compose --env-file .env -f docker/docker-compose.yml ps; docker ps; curl.exe -s http://localhost:3001/api/health"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "Check API health",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-Command",
+				"curl.exe -v http://localhost:3001/api/health"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "Run Backend (dev)",
+			"type": "shell",
+			"command": "npm",
+			"args": [
+				"run",
+				"dev"
+			],
+			"isBackground": true
+		},
+		{
+			"label": "Smoke Test API (companies/vacancies/invoices)",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-Command",
+				"$base='http://127.0.0.1:3001'; curl.exe -s $base/api/health; \"`n---`n\"; $company=(curl.exe -s -X POST \"$base/api/companies\" -H \"Content-Type: application/json\" -H \"x-role: empresa\" -d '{\"name\":\"Empresa Demo\",\"type\":\"private\"}' | ConvertFrom-Json); $company.company.id; \"`n---`n\"; $vac=(curl.exe -s -X POST \"$base/api/vacancies\" -H \"Content-Type: application/json\" -H \"x-role: empresa\" -d (\"{\"+\"\\\"companyId\\\":\\\"$($company.company.id)\\\",\\\"title\\\":\\\"Vacante Demo\\\"}\" ) | ConvertFrom-Json); $vac.id; \"`n---`n\"; curl.exe -s \"$base/api/vacancies/$($vac.id)\"; \"`n---`n\"; curl.exe -s \"$base/api/interactions\" -H \"x-role: consultora\"; \"`n---`n\"; curl.exe -s -X POST \"$base/api/invoices/generate\" -H \"Content-Type: application/json\" -H \"x-role: consultora\" -d (\"{\"+\"\\\"companyId\\\":\\\"$($company.company.id)\\\",\\\"periodStart\\\":\\\"2025-01-01T00:00:00.000Z\\\",\\\"periodEnd\\\":\\\"2025-12-31T23:59:59.000Z\\\",\\\"tollPerInteraction\\\":0.25}\" )"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "Smoke Test API (script)",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-File",
+				"scripts/smoke-test.ps1"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "Check MySQL schema in container",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-Command",
+				"docker exec -i bonaparte-mysql mysql -u$env:MYSQL_USER -p$env:MYSQL_PASSWORD -e \"SHOW DATABASES; USE $env:MYSQL_DATABASE; SHOW TABLES;\""
+			],
+			"isBackground": false
+		},
+		{
+			"label": "Check MySQL tables",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-Command",
+				"docker exec -i bonaparte-mysql mysql -u$env:MYSQL_USER -p$env:MYSQL_PASSWORD $env:MYSQL_DATABASE -e \"SHOW TABLES;\""
+			],
+			"isBackground": false
+		},
+		{
+			"label": "Check MySQL tables (root)",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-Command",
+				"docker exec -i bonaparte-mysql mysql -uroot -p$env:MYSQL_PASSWORD $env:MYSQL_DATABASE -e \"SHOW TABLES;\""
+			],
+			"isBackground": false
+		},
+		{
+			"label": "Verify MySQL schema (node mysql2)",
+			"type": "shell",
+			"command": "node",
+			"args": [
+				"scripts/check-mysql.js"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "Verify Mongo connection (mongoose)",
+			"type": "shell",
+			"command": "node",
+			"args": [
+				"scripts/check-mongo.js"
+			],
+			"isBackground": false
+		}
+	]
+}

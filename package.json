@@ -1,0 +1,25 @@
+{
+  "name": "bonaparte",
+  "version": "1.0.0",
+  "description": "Este proyecto es un prototipo de sitio web para la gestión de vacantes de empresas públicas y privadas en la provincia de Chiriquí, Panamá. Permite a las empresas publicar vacantes y a los usuarios acceder a ellas sin necesidad de crear una hoja de vida. Incluye módulos para empresas, empresa consultora, chatbot, facturación y base de datos con replicación.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "start": "node backend/index.js",
+    "dev": "node --watch backend/index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^5.2.1",
+    "mongoose": "^9.0.1",
+    "mysql2": "^3.16.0"
+  }
+}
