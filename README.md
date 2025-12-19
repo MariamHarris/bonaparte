@@ -1,98 +1,70 @@
 # Bonaparte - Prototipo de Gestión de Vacantes
 
-Este proyecto es un prototipo de sitio web para la gestión de vacantes de empresas públicas y privadas en la provincia de Chiriquí, Panamá. Permite a las empresas publicar vacantes y a los usuarios acceder a ellas sin necesidad de crear una hoja de vida. Incluye módulos para empresas, empresa consultora, chatbot, facturación y base de datos con replicación.
+Prototipo Panamá: vacantes públicas/privadas, peaje por interacción, facturación emulada DGI. Incluye API Node/Express, MySQL/Mongo, frontend estático (Nginx), chatbot y facturas HTML.
 
-## Estructura Inicial del Proyecto
+## Rutas rápidas
+- Público: http://localhost:8080/
+- Empresa: http://localhost:8080/empresa.html
+- Consultora: http://localhost:8080/consultora.html
+- API base: http://127.0.0.1:3001
 
-- `/backend` - API y lógica de negocio (Node.js/Express)
-- `/frontend` - Interfaz de usuario (React)
-- `/database` - Scripts y configuración de bases de datos (MongoDB, MySQL)
-- `/docker` - Archivos para despliegue y orquestación (Docker)
-- `/docs` - Documentación y diagramas
+## Requisitos
+- Node 18+
+- Docker Desktop (recomendado) con Compose
+- PowerShell / bash
 
-## Sitio Web (Frontend estático - MVP)
-Este repo incluye un **frontend mínimo** (HTML + JS) en `/public`, servido por **Nginx** (Docker) en:
+## Configuración de entorno
+1) Copia `.env.example` a `.env` y ajusta credenciales/puertos.
+2) Variables clave: `PORT`, `MYSQL_*`, `MONGO_URI`, `JWT_SECRET`, `JWT_EXPIRES_IN`, `SECURE_MODE`, `INVOICES_PUBLIC_BASE`, `MYSQL_REPL_PASSWORD`.
 
-- Público: `http://localhost:8080/`
-- Empresa: `http://localhost:8080/empresa.html`
-- Consultora: `http://localhost:8080/consultora.html`
+## Puesta en marcha (Docker)
+```bash
+docker compose --env-file .env -f docker/docker-compose.yml up -d
+# opcional: replicación + balanceo
+docker compose --env-file .env -f docker/docker-compose.replication.yml up -d
+```
 
-Notas:
-- El frontend consume el API en `http://127.0.0.1:3001` (ver `/public/app.js`).
-- Las facturas HTML también se publican por el mismo Nginx bajo `/invoices/`.
+## Semillas / datos demo
+```bash
+pwsh -c "Get-Content -Raw 'database/mysql/02_seed.sql' | docker exec -i bonaparte-mysql sh -c 'mysql -u$MYSQL_USER -p$MYSQL_PASSWORD $MYSQL_DATABASE'"
+```
+Usuarios demo (pass `demo123`): `consultora_demo`, `empresa_chiriqui`, `empresa_panama` y más empresas por provincia en `02_seed.sql`.
 
-## Módulos Principales
-- Empresas (públicas y privadas)
-- Empresa Consultora
-- Chatbot
-- Facturación
-- Base de Datos (replicación y balanceo)
+## Backend local
+```bash
+npm install
+npm run dev   # backend en 3001
+```
 
-## Instalación y Ejecución
-### Backend
-- Instalar dependencias: `npm install`
-- Ejecutar backend: `npm run dev`
+## Endpoints clave
+- Auth: `POST /api/auth/login`, `/api/auth/register/consultora`, `/api/auth/register/company`
+- Chatbot: `POST /api/chatbot/ask` (opcional `vacancyId`, registra interacción)
+- Stats: `GET /api/stats/consultora?companyId=...` o `?vacancyId=...`; `GET /api/stats/empresa`
+- Facturas: `POST /api/invoices/generate` (JWT consultora) → HTML en `/public/invoices/`
 
-### Base de datos (opciones)
-**Opción A (recomendada): Docker Desktop + Compose**
-- Instala Docker Desktop para Windows y asegúrate que el comando `docker` funcione en PowerShell.
-- Luego ejecuta: `docker compose --env-file .env -f docker/docker-compose.yml up -d`
+## Frontend (MVP estático)
+- Consume `http://127.0.0.1:3001` vía `/public/app.js`.
+- Secciones: público (vacantes + stats), empresa (vacantes propias), consultora (stats, facturación, chatbot dedicado).
 
-Esto levanta:
-- MongoDB (27017)
-- MySQL (3306)
-- Nginx para frontend + facturas HTML (8080)
+## Modo seguro opcional
+- `SECURE_MODE=true` obliga Bearer JWT (deshabilita `x-role`), requiere `JWT_SECRET` y reduce expiración por defecto a 1 día.
 
-**Opción B: instalación local (sin Docker)**
-- Instala MongoDB (puerto 27017) y MySQL (puerto 3306) en tu máquina.
-- Verifica que `.env` apunte a `127.0.0.1`.
+## CI/CD
+- `.github/workflows/ci.yml` instala dependencias y ejecuta `npm test` en push/PR a `main`.
 
-## Replicación + Balanceo (MySQL Externa → Interna)
-Este proyecto incluye una configuración opcional de:
-- **Replicación GTID**: `mysql-external` (relacional externa / primary) → `mysql-internal` (relacional interna / replica)
-- **Balanceo**: **HAProxy** (puertos separados lectura/escritura)
+## Pruebas
+- El script `npm test` es placeholder. Añadir Mocha/Jest + Supertest para rutas críticas (auth, chatbot, invoices, stats) y actualizar el script.
 
-### Levantar replicación
-- `docker compose --env-file .env -f docker/docker-compose.replication.yml up -d`
+## Replicación (opcional)
+- Puertos: primary 3307, replica 3308, HAProxy RW 6033 / RO 6034.
+- Verificación: `node scripts/verify-mysql-replication.js`.
 
-Puertos:
-- Primary (externa): `127.0.0.1:3307`
-- Replica (interna): `127.0.0.1:3308`
-- Balanceador (apps):
-	- Escritura -> externa: `127.0.0.1:6033`
-	- Lectura -> interna: `127.0.0.1:6034`
+## Decisiones técnicas
+- Node/Express + MySQL (mysql2) y Mongo (opcional).
+- JWT por rol (`empresa`/`consultora`), modo seguro conmutado por variable.
+- Frontend estático para rapidez; facturas servidas por Nginx.
 
-### Verificar replicación
-- `node scripts/verify-mysql-replication.js`
-
----
-
-## Autenticación (JWT)
-Este prototipo usa autenticación real con **usuario/contraseña** y devuelve un **JWT**.
-
-- Registrar consultora: `POST /api/auth/register/consultora`
-- Registrar empresa + compañía: `POST /api/auth/register/company`
-- Login: `POST /api/auth/login`
-
-Para endpoints protegidos usa header:
-- `Authorization: Bearer <token>`
-
-## Facturas (HTML + Nginx)
-Al generar una factura, el backend crea un archivo HTML en `public/invoices/` y devuelve un `publicUrl`.
-
-- Base pública: `INVOICES_PUBLIC_BASE` (por defecto `http://localhost:8080`)
-
-## Chatbot
-Endpoint público para guiar dudas (FAQ/intent simple):
-- `POST /api/chatbot/ask` con `{ "message": "...", "vacancyId": "..." }` (vacancyId es opcional)
-
-Si envías `vacancyId`, el sistema registra una interacción (channel=`chatbot`, event=`chat`) para estadísticas y facturación.
-
-## Estadísticas (fundamento del peaje)
-Se exponen estadísticas de interacciones (totales, por canal/evento, serie diaria, top vacantes):
-- Consultora: `GET /api/stats/consultora?companyId=...` o `GET /api/stats/consultora?vacancyId=...`
-- Empresa: `GET /api/stats/empresa` (solo su propia empresa)
-
----
-
-> Sustituya este archivo con información relevante a medida que el proyecto evolucione.
+## Pendientes sugeridos
+- Validaciones de formularios y mensajes de error más claros en público/empresa.
+- Logger estructurado (pino/winston) y métricas.
+- Tests automatizados reales.
